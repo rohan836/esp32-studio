@@ -1,29 +1,66 @@
-# Android toolchain status
+# Toolchain architecture
 
-## Implemented in the repository
+## Android
 
-- The Android CI workflow builds the Android ARM64 Arduino CLI fork and packages it as an executable in the APK's native-library directory.
-- The app configures Arduino CLI with app-private data, download, sketchbook, and library directories.
-- The ESP32 board package index is configured.
-- The app has commands to install the ESP32 Arduino core, compile the current sketch, and report toolchain status.
-- The Library Manager searches the official Arduino Library Registry, downloads archives, checks SHA-256 when the registry supplies it, blocks ZIP path traversal, and installs libraries under the app-private sketchbook.
+Android uses the packaged Android ARM64 Arduino CLI runtime already present in the APK build.
 
-Commands:
-- `esp toolchain status`
-- `esp toolchain install`
-- `esp build`
-- `esp lib search SSD1306`
-- `esp lib add Adafruit SSD1306`
-- `esp lib list`
+The app configures:
 
-## Runtime limitation that must be verified
+- Arduino core indexes
+- App-private Arduino data/download/sketchbook directories
+- Project FQBN
+- Library registry and library installation
 
-The Arduino CLI executable is built for Android ARM64. The ESP32 board package downloads additional compiler and linker executables. The experimental upstream fork documents Android/Termux package installation, but that does not prove every downloaded compiler tool runs inside a normal Android application sandbox.
+The selected FQBN determines the core installed and the compiler invocation.
 
-The code must report compiler launch failures. Do not mark local ESP32 compilation as verified until the complete install-and-build path succeeds on a normal Android app installation.
+Android native upload adapters are intentionally explicit:
 
-## Firmware flashing limitation
+- ESP32 Arduino targets -> native ESP32 ROM bootloader writer
+- `arduino:avr:uno` and classic Nano targets -> STK500v1 writer
 
-The native ROM flasher can write a prebuilt binary to a selected address. A full clean-board flash usually requires a bootloader image, partition table, and application image at their correct addresses. Do not treat a single application binary at 0x10000 as a complete factory flash for every board.
+Other boards can be compiled when their Arduino platform is compatible with the Android toolchain runtime, but their physical upload path is not falsely marked as implemented.
 
-A real USB-connected ESP32 is required to verify physical flashing and automatic reset behavior. Protocol unit tests do not replace that hardware test.
+## Windows and Ubuntu
+
+The desktop backend uses the official host tools installed by the user:
+
+- Arduino CLI for Arduino-framework boards.
+- Espressif ESP-IDF / `idf.py` for native ESP-IDF projects.
+
+The bridge never substitutes its own compiler for these tools.
+
+Typical flow:
+
+```text
+ESP32 Studio
+    |
+    +-- Arduino mode
+    |     |
+    |     +-- Arduino CLI
+    |           |
+    |           +-- Boards Manager core
+    |           +-- compiler/tool dependencies
+    |           +-- upload tool
+    |           +-- monitor
+    |
+    +-- ESP-IDF mode
+          |
+          +-- ESP-IDF EIM installation
+          +-- idf.py
+          +-- CMake/Ninja/toolchain
+          +-- esptool/monitor
+```
+
+See [desktop/README.md](../desktop/README.md) for commands.
+
+## Verification boundary
+
+A source implementation is not the same as a hardware-tested feature. The repository therefore keeps separate verification gates for:
+
+1. compiler installation,
+2. build,
+3. upload,
+4. serial monitor,
+5. physical-board behavior.
+
+Do not mark a platform as fully verified based only on unit tests.
