@@ -37,5 +37,6 @@ kotlin {
 
 dependencies {
     implementation("com.github.mik3y:usb-serial-for-android:3.11.0")
+    implementation("com.google.code.gson:gson:2.13.1")
     testImplementation("junit:junit:4.13.2")
 }
