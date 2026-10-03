@@ -22,6 +22,20 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Go for Android Arduino CLI
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.1"
+
+      - name: Build Android Arduino CLI
+        run: |
+          git clone --filter=blob:none https://github.com/ipodvideo87/arduino-cli-android.git /tmp/arduino-cli-android
+          git -C /tmp/arduino-cli-android checkout 06f598c420f638891545631f9bf08ca11a8523e3
+          mkdir -p app/src/main/jniLibs/arm64-v8a
+          cd /tmp/arduino-cli-android
+          CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -trimpath -buildvcs=false -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libarduino_cli.so" .
+          chmod 755 "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libarduino_cli.so"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
