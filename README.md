@@ -1,84 +1,107 @@
 # ESP32 Studio
 
-A lightweight Android development environment for ESP32 boards.
+ESP32 Studio is a small cross-platform development environment for Arduino-family boards and ESP32.
 
-## Goals
+## Platform support
 
-- Detect supported ESP32 USB devices automatically.
-- Avoid manual serial-port selection in the normal workflow.
-- Keep the UI responsive during USB I/O, builds, downloads, and flashing.
-- Provide a small code editor, project storage, terminal, and serial monitor.
-- Use cached toolchains and libraries.
-- Refuse unsafe flash choices instead of guessing.
+| Platform | Arduino build | Arduino upload | ESP32 Arduino | Native ESP-IDF |
+|---|---|---|---|---|
+| Android | Yes, through the packaged Android Arduino CLI runtime | ESP32 + classic AVR Uno/Nano native upload paths | Yes | No |
+| Windows | Yes, official Arduino CLI | Yes, official Arduino CLI | Yes | Yes, official ESP-IDF |
+| Ubuntu/Linux | Yes, official Arduino CLI | Yes, official Arduino CLI | Yes | Yes, official ESP-IDF |
 
-## Current status
+The desktop backend intentionally delegates to the official host tools instead of shipping a second compiler implementation.
 
-The repository now contains the Android foundation plus a native ESP32 ROM bootloader path.
+## Arduino board model
 
-Working foundation:
+Boards are selected by **FQBN** (Fully Qualified Board Name), for example:
 
-- Native Kotlin Android app.
-- Automatic USB serial discovery and selection.
-- ESP32 and common USB-UART device classification.
-- Android USB permission handling.
-- Automatic serial connection and 115200 monitor.
-- Local project storage with a starter sketch.
-- ESP32-specific command layer with shell fallback.
-- Native ESP32 bootloader SYNC probing.
-- Native binary flash writing with progress reporting.
-- Safe project-path and flash-address checks.
-- Unit tests for device classification, CLI parsing, protocol encoding, and command execution.
-- GitHub Actions build and test configuration.
+- `arduino:avr:uno`
+- `arduino:avr:nano`
+- `esp32:esp32:esp32`
 
-Not yet complete:
+The board/core manager uses Arduino's Boards Manager package system. A board core is installed from its core ID and the project stores the selected FQBN.
 
-- Verify downloaded ESP32 compiler/linker tools run inside a standard Android app sandbox.
-- Automatic chip revision and flash-size probing.
-- Flash-content verification.
-- Library search/download/install.
-- Incremental firmware build cache.
-- OTA support.
-- ESP-IDF backend.
+That means the software does not need a hard-coded "all boards" list. Any board exposed by the installed Arduino platform package can be selected and compiled.
 
-The CI-built APK includes an Android ARM64 Arduino CLI and the app can install the ESP32 core and compile sketches. The ESP32 compiler packages downloaded by the board manager still require verification inside a normal Android app sandbox; Android/Termux support alone is not proof. Library commands are available through the terminal. Native flashing accepts a prebuilt .bin image, but a complete clean-board flash can also need bootloader and partition images. Physical USB flashing is not marked verified without a real board test.
+Examples in the Android terminal:
 
-## First user workflow
+```text
+esp board listall uno
+esp board set arduino:avr:uno
+esp core install arduino:avr
+esp build
+esp run
+```
 
-1. Open the app.
-2. Connect an ESP32 with a USB OTG connection.
-3. ESP32 Studio detects the USB serial device.
-4. Android asks for USB permission when required.
-5. The app opens the serial monitor automatically.
-6. Edit and save the project.
-7. Probe the ESP bootloader with `esp info` when hardware access needs verification.
-8. Flash a compiled image with `esp flash firmware.bin 0x10000`.
-9. Return to the automatic serial monitor.
+For an ESP32:
 
-## Architecture
+```text
+esp board set esp32:esp32:esp32
+esp core install esp32:esp32
+esp build
+esp run
+```
 
-- app/ — Android application.
-- docs/ — architecture, toolchain, roadmap, and security notes.
-- sample/ — example ESP32 sketch.
-- .github/workflows/ — CI.
+## Android
 
-## Design rule
+Implemented:
 
-The normal workflow should not expose COM ports, compiler paths, package paths, or board IDs.
+- USB Host detection and permission flow
+- USB serial monitor
+- Generic Arduino FQBN project target
+- Arduino core search/list/install
+- Generic Arduino compilation
+- ESP32 ROM bootloader flash path
+- AVR STK500v1 flash path for classic Uno/Nano targets
+- Arduino Library Registry search/install
+- Project-local board selection
 
-The app should detect these values where possible. Advanced controls remain available only when automatic detection cannot safely decide.
+Android does **not** claim native ESP-IDF support. Espressif's official ESP-IDF documentation targets desktop operating systems, so the Android implementation stays on the Arduino framework.
 
-## Hardware support
+Physical board flashing still requires hardware validation. The repository cannot mark a USB flash path as verified without a real board test.
 
-USB serial transport uses usb-serial-for-android 3.11.0. That project supports CDC/ACM and common USB-UART chips such as FTDI, CP210x, CH340/CH341, and PL2303. It also supports Espressif native USB serial devices where the USB interfaces match its supported drivers.
+## Windows and Ubuntu
 
-Chip-level identity and flash configuration still need a dedicated ESP bootloader probe before automatic flashing is enabled.
+Use:
 
-## Build
+```text
+desktop/esp_studio.py
+desktop/esp-studio.ps1   # Windows
+desktop/esp-studio.sh    # Ubuntu/Linux
+```
 
-Use Android Studio with JDK 17.
+The desktop bridge supports:
 
-The current CI configuration installs Gradle 9.4.1 and Android SDK API 37, then builds the debug APK and runs unit tests.
+```text
+doctor
+boards
+board-search
+core-install
+core-list
+build
+upload
+monitor
+idf-build
+idf-flash
+idf-monitor
+```
 
-## License
+Arduino commands delegate to the official Arduino CLI. ESP-IDF commands delegate to `idf.py` from the official Espressif installation.
 
-MIT
+See [desktop/README.md](desktop/README.md).
+
+## Current verification state
+
+Source-level implementation and unit tests are included.
+
+The following still require environment/hardware verification:
+
+- Android installation of downloaded compiler tool packages for every Arduino platform.
+- Physical ESP32 flashing.
+- Physical Uno/Nano flashing.
+- Full ESP-IDF installation and build on Windows.
+- Full ESP-IDF installation and build on Ubuntu.
+- Board-specific upload behavior for Arduino cores other than the native Android ESP32/AVR adapters.
+
+These are verification gates, not simulated success states.
