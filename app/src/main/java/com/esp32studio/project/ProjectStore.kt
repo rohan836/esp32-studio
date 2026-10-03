@@ -25,6 +25,8 @@ class ProjectStore(private val context: Context) {
 
     fun path(): File = projectDir
 
+    fun boardFqbn(): String = "esp32:esp32:esp32"
+
     companion object {
         private const val DEFAULT_SKETCH = """
 void setup() {
