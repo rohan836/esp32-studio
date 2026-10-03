@@ -28,6 +28,7 @@ import com.esp32studio.device.UsbDeviceRepository
 import com.esp32studio.project.ProjectStore
 import com.esp32studio.serial.SerialSession
 import com.esp32studio.toolchain.CommandRunner
+import com.esp32studio.toolchain.ArduinoToolchainManager
 import java.util.concurrent.Executors
 
 class MainActivity : android.app.Activity() {
@@ -40,6 +41,7 @@ class MainActivity : android.app.Activity() {
     private lateinit var deviceRepository: UsbDeviceRepository
     private lateinit var projectStore: ProjectStore
     private lateinit var libraryManager: ArduinoLibraryManager
+    private lateinit var toolchainManager: ArduinoToolchainManager
 
     private val background = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
@@ -99,6 +101,7 @@ class MainActivity : android.app.Activity() {
         deviceRepository = UsbDeviceRepository(usbManager)
         projectStore = ProjectStore(this)
         libraryManager = ArduinoLibraryManager(this)
+        toolchainManager = ArduinoToolchainManager(this)
 
         registerUsbReceiver()
         setContentView(buildUi())
@@ -344,7 +347,7 @@ class MainActivity : android.app.Activity() {
     private fun executeStudioCommand(input: String) {
         val command = CliParser.parse(input) ?: return
         when (command.name) {
-            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp project path | esp build | esp flash FILE [ADDRESS] | esp run\nesp monitor | esp lib search NAME | esp lib add NAME | esp lib list")
+            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp project path | esp build | esp flash FILE [ADDRESS] | esp run\nesp monitor | esp lib search NAME | esp lib add NAME | esp lib list | esp toolchain install")
             "devices" -> background.execute {
                 val devices = runCatching { deviceRepository.scan() }.getOrDefault(emptyList())
                 val output = if (devices.isEmpty()) "No supported USB serial device found." else devices.joinToString("\n") { d ->
@@ -359,11 +362,12 @@ class MainActivity : android.app.Activity() {
                 "save" -> { projectStore.save(editor.text.toString()); appendConsole("Project saved.") }
                 else -> appendConsole("Usage: esp project path | esp project save")
             }
-            "build" -> appendConsole("Build runtime is not installed. Project source and native flashing are ready.")
+            "build" -> runBuildCommand()
             "flash" -> runFlashCommand(command.arguments)
             "run" -> runBuildFlashMonitor()
             "monitor" -> appendConsole(if (serialSession == null) "No serial session connected." else "Serial monitor is active in the console.")
             "lib" -> runLibraryCommand(command.arguments)
+            "toolchain" -> runToolchainCommand(command.arguments)
             "clear" -> console.text = ""
             else -> executeShellCommand(input)
         }
@@ -520,15 +524,62 @@ class MainActivity : android.app.Activity() {
 
     private fun runBuildFlashMonitor() {
         projectStore.save(editor.text.toString())
-        appendConsole("Project saved.")
+        runBuildCommand(flashAfterBuild = true)
+    }
 
-        val image = safeProjectFile("firmware.bin")
-        if (image?.isFile == true) {
-            appendConsole("Found firmware.bin. Starting flash...")
-            runFlashCommand(listOf("firmware.bin", "0x10000"))
-        } else {
-            appendConsole("Build runtime is not installed on Android.")
-            appendConsole("Add a compiled firmware.bin to the project, then Run will flash it at 0x10000.")
+    private fun runBuildCommand(flashAfterBuild: Boolean = false) {
+        projectStore.save(editor.text.toString())
+        appendConsole("Saved sketch. Checking Android Arduino toolchain...")
+        background.execute {
+            val result = runCatching { toolchainManager.compile(projectStore.path()) }
+            main.post {
+                result.onSuccess { build ->
+                    appendConsole(build.stdout)
+                    if (build.stderr.isNotBlank()) appendConsole(build.stderr)
+                    if (build.exitCode != 0) {
+                        appendConsole("Build failed (exit " + build.exitCode + ").")
+                        return@post
+                    }
+                    appendConsole("Build completed.")
+                    if (flashAfterBuild) {
+                        val image = toolchainManager.compiledSketchImage(projectStore.path())
+                        if (image == null) {
+                            appendConsole("Build succeeded but the sketch .bin was not found.")
+                        } else {
+                            val relative = projectStore.path().toPath().relativize(image.toPath()).toString()
+                            runFlashCommand(listOf(relative, "0x10000"))
+                        }
+                    }
+                }.onFailure {
+                    appendConsole("Build unavailable: " + it.message)
+                }
+            }
+        }
+    }
+
+    private fun runToolchainCommand(arguments: List<String>) {
+        when (arguments.firstOrNull()?.lowercase()) {
+            "status" -> background.execute {
+                val status = runCatching { toolchainManager.status() }
+                    .getOrElse { "Toolchain status failed: " + it.message }
+                main.post { appendConsole(status) }
+            }
+            "install" -> {
+                appendConsole("Installing ESP32 Arduino core. This downloads the compiler packages.")
+                background.execute {
+                    val result = runCatching { toolchainManager.installEsp32Core() }
+                    main.post {
+                        result.onSuccess {
+                            appendConsole(it.stdout)
+                            if (it.stderr.isNotBlank()) appendConsole(it.stderr)
+                            appendConsole(if (it.exitCode == 0) "ESP32 core install finished." else "ESP32 core install failed.")
+                        }.onFailure {
+                            appendConsole("Toolchain install failed: " + it.message)
+                        }
+                    }
+                }
+            }
+            else -> appendConsole("Usage: esp toolchain status | esp toolchain install")
         }
     }
 
