@@ -253,7 +253,7 @@ class MainActivity : android.app.Activity() {
             deviceText.text = "No supported USB serial device detected"
             statusText.text = "Ready"
             connectButton.isEnabled = false
-            runButton.isEnabled = false
+            runButton.isEnabled = true
             return
         }
 
@@ -278,7 +278,7 @@ class MainActivity : android.app.Activity() {
         }
 
         connectButton.isEnabled = selectedDevice != null
-        runButton.isEnabled = selectedDevice != null
+        runButton.isEnabled = true
 
         selectedDevice?.let { requestUsbPermissionOrConnect(it) }
     }
