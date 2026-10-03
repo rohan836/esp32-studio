@@ -55,8 +55,18 @@ class MainActivity : android.app.Activity() {
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                UsbManager.ACTION_USB_DEVICE_ATTACHED,
-                UsbManager.ACTION_USB_DEVICE_DETACHED -> refreshDevices()
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
+                    refreshDevices()
+                }
+
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                    permissionRequestedKey = null
+                    selectedDevice = null
+                    serialSession?.shutdown()
+                    serialSession = null
+                    statusText.text = "Disconnected"
+                    refreshDevices()
+                }
 
                 ACTION_USB_PERMISSION -> {
                     val device = intent.deviceExtra()
@@ -64,6 +74,8 @@ class MainActivity : android.app.Activity() {
                         UsbManager.EXTRA_PERMISSION_GRANTED,
                         false
                     )
+
+                    permissionRequestedKey = null
 
                     if (granted && device != null) {
                         selectedDevice = device
@@ -336,19 +348,11 @@ class MainActivity : android.app.Activity() {
         if (command.isBlank()) return
 
         background.execute {
-            val result = runCatching {
-                CommandRunner().run(
-                    listOf("/system/bin/sh", "-c", command),
-                    workingDirectory = filesDir,
-                    timeoutMs = 30_000
-                )
-            }.getOrElse { t ->
-                com.esp32studio.toolchain.CommandResult(
-                    exitCode = 1,
-                    stdout = "",
-                    stderr = t.message.orEmpty()
-                )
-            }
+            val result = CommandRunner().run(
+                listOf("/system/bin/sh", "-c", command),
+                workingDirectory = filesDir,
+                timeoutMs = 30_000
+            )
 
             main.post {
                 appendConsole(
