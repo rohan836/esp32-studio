@@ -44,6 +44,18 @@ class ArduinoToolchainManager(context: Context) {
         else "Arduino CLI could not start: " + result.stderr.trim()
     }
 
+    fun ensureEsp32CoreInstalled(): CommandResult {
+        check(runtimeAvailable()) {
+            "Android Arduino CLI is not packaged in this APK. Build the APK through Android CI."
+        }
+        prepareConfig()
+        val listed = run(listOf("core", "list"), timeoutMs = 30_000)
+        if (listed.exitCode == 0 && listed.stdout.contains("esp32:esp32")) {
+            return CommandResult(0, "ESP32 core already installed.", "")
+        }
+        return installEsp32Core()
+    }
+
     fun installEsp32Core(): CommandResult {
         check(runtimeAvailable()) {
             "Android Arduino CLI is not packaged in this APK. Build the APK through Android CI."
