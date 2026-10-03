@@ -505,6 +505,10 @@ class MainActivity : android.app.Activity() {
     }
 
     private fun runBootloaderProbe() {
+        if (!BoardFqbn.isEsp32(projectStore.boardFqbn())) {
+            appendConsole("ESP32 bootloader probe is only available for ESP32 Arduino targets.")
+            return
+        }
         val device = selectedDevice
         if (device == null) {
             appendConsole("No ESP32 USB device is selected.")
@@ -532,7 +536,72 @@ class MainActivity : android.app.Activity() {
         }
     }
 
+    private fun flashBuiltArtifact(
+        fqbn: String,
+        image: java.io.File,
+        device: android.hardware.usb.UsbDevice
+    ) {
+        serialSession?.shutdown()
+        serialSession = null
+        statusText.text = "Flashing..."
+        appendConsole("Flashing " + image.name + " for " + fqbn + "...")
+
+        background.execute {
+            val result = runCatching {
+                when {
+                    BoardFqbn.isEsp32(fqbn) -> {
+                        require(image.extension.equals("bin", true)) {
+                            "ESP32 build did not produce a .bin image."
+                        }
+                        Esp32Bootloader(
+                            usbManager = usbManager,
+                            onProgress = { sent, total ->
+                                main.post {
+                                    statusText.text = "Flashing " + sent + "/" + total
+                                }
+                            }
+                        ).flash(device, image, 0x10000)
+                    }
+
+                    fqbn == "arduino:avr:uno" || fqbn.startsWith("arduino:avr:nano") -> {
+                        require(image.extension.equals("hex", true)) {
+                            "AVR build did not produce a .hex image."
+                        }
+                        AvrStk500Uploader(
+                            usbManager = usbManager,
+                            onProgress = { sent, total ->
+                                main.post {
+                                    statusText.text = "Flashing " + sent + "/" + total
+                                }
+                            }
+                        ).flashUno(device, image)
+                    }
+
+                    else -> error(
+                        "Android native flashing is not implemented for FQBN " + fqbn +
+                            ". Build is supported; use a desktop Arduino CLI uploader for this board."
+                    )
+                }
+            }
+
+            main.post {
+                result.onSuccess {
+                    statusText.text = "Flash complete"
+                    appendConsole("Flash complete. Reconnecting serial monitor...")
+                }.onFailure {
+                    statusText.text = "Flash failed"
+                    appendConsole("Flash failed: " + it.message)
+                }
+                connectToDevice(device)
+            }
+        }
+    }
+
     private fun runFlashCommand(arguments: List<String>) {
+        if (!BoardFqbn.isEsp32(projectStore.boardFqbn())) {
+            appendConsole("Manual binary flashing is reserved for ESP32 targets. Use esp run for supported Android uploaders.")
+            return
+        }
         val device = selectedDevice
         if (device == null) {
             appendConsole("No ESP32 USB device is selected.")
@@ -606,14 +675,20 @@ class MainActivity : android.app.Activity() {
 
     private fun runBuildCommand(flashAfterBuild: Boolean = false) {
         projectStore.save(editor.text.toString())
-        appendConsole("Saved sketch. Checking Android Arduino toolchain...")
+        val fqbn = runCatching { BoardFqbn.validate(projectStore.boardFqbn()) }
+            .getOrElse {
+                appendConsole("Invalid project board: " + it.message)
+                return
+            }
+
+        appendConsole("Saved sketch. Target: " + fqbn)
         background.execute {
             val result = runCatching {
-                val setup = toolchainManager.ensureEsp32CoreInstalled()
+                val setup = toolchainManager.ensureCoreInstalled(fqbn)
                 if (setup.exitCode != 0) {
                     setup
                 } else {
-                    val build = toolchainManager.compile(projectStore.path())
+                    val build = toolchainManager.compile(projectStore.path(), fqbn)
                     com.esp32studio.toolchain.CommandResult(
                         build.exitCode,
                         setup.stdout + "\n" + build.stdout,
@@ -621,22 +696,31 @@ class MainActivity : android.app.Activity() {
                     )
                 }
             }
+
             main.post {
                 result.onSuccess { build ->
                     if (build.stdout.isNotBlank()) appendConsole(build.stdout.trim())
                     if (build.stderr.isNotBlank()) appendConsole(build.stderr.trim())
+
                     if (build.exitCode != 0) {
                         appendConsole("Build/setup failed (exit " + build.exitCode + ").")
                         return@post
                     }
-                    appendConsole("Build completed.")
+
+                    appendConsole("Build completed for " + fqbn + ".")
                     if (flashAfterBuild) {
-                        val image = toolchainManager.compiledSketchImage(projectStore.path())
+                        val image = toolchainManager.compiledSketchArtifact(projectStore.path(), fqbn)
+                        val device = selectedDevice
                         if (image == null) {
-                            appendConsole("Build succeeded but the sketch .bin was not found.")
+                            appendConsole(
+                                "Build succeeded but no " +
+                                    BoardFqbn.preferredArtifactExtension(fqbn) +
+                                    " artifact was found."
+                            )
+                        } else if (device == null) {
+                            appendConsole("Build succeeded. Connect a board to flash it.")
                         } else {
-                            val relative = projectStore.path().toPath().relativize(image.toPath()).toString()
-                            runFlashCommand(listOf(relative, "0x10000"))
+                            flashBuiltArtifact(fqbn, image, device)
                         }
                     }
                 }.onFailure {
@@ -654,14 +738,18 @@ class MainActivity : android.app.Activity() {
                 main.post { appendConsole(status) }
             }
             "install" -> {
-                appendConsole("Installing ESP32 Arduino core. This downloads the compiler packages.")
+                val core = BoardFqbn.coreId(projectStore.boardFqbn())
+                appendConsole("Installing Arduino core: " + core)
                 background.execute {
-                    val result = runCatching { toolchainManager.installEsp32Core() }
+                    val result = runCatching { toolchainManager.installCore(core) }
                     main.post {
                         result.onSuccess {
-                            appendConsole(it.stdout)
-                            if (it.stderr.isNotBlank()) appendConsole(it.stderr)
-                            appendConsole(if (it.exitCode == 0) "ESP32 core install finished." else "ESP32 core install failed.")
+                            if (it.stdout.isNotBlank()) appendConsole(it.stdout.trim())
+                            if (it.stderr.isNotBlank()) appendConsole(it.stderr.trim())
+                            appendConsole(
+                                if (it.exitCode == 0) "Arduino core install finished."
+                                else "Arduino core install failed."
+                            )
                         }.onFailure {
                             appendConsole("Toolchain install failed: " + it.message)
                         }
@@ -682,6 +770,8 @@ class MainActivity : android.app.Activity() {
                 appendLine("USB candidates: ${devices.size}")
                 appendLine("Selected device: $selected")
                 appendLine("Project: $projectPath")
+                appendLine("Board FQBN: " + projectStore.boardFqbn())
+                appendLine("Board core: " + BoardFqbn.coreId(projectStore.boardFqbn()))
                 appendLine("Native ESP bootloader: available")
                 appendLine("Arduino toolchain: " + toolchainManager.status())
                 appendLine("Installed libraries: " + libraryManager.installedLibraries().size)
