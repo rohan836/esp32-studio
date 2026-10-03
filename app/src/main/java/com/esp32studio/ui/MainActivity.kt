@@ -531,13 +531,25 @@ class MainActivity : android.app.Activity() {
         projectStore.save(editor.text.toString())
         appendConsole("Saved sketch. Checking Android Arduino toolchain...")
         background.execute {
-            val result = runCatching { toolchainManager.compile(projectStore.path()) }
+            val result = runCatching {
+                val setup = toolchainManager.ensureEsp32CoreInstalled()
+                if (setup.exitCode != 0) {
+                    setup
+                } else {
+                    val build = toolchainManager.compile(projectStore.path())
+                    com.esp32studio.toolchain.CommandResult(
+                        build.exitCode,
+                        setup.stdout + "\n" + build.stdout,
+                        setup.stderr + "\n" + build.stderr
+                    )
+                }
+            }
             main.post {
                 result.onSuccess { build ->
-                    appendConsole(build.stdout)
-                    if (build.stderr.isNotBlank()) appendConsole(build.stderr)
+                    if (build.stdout.isNotBlank()) appendConsole(build.stdout.trim())
+                    if (build.stderr.isNotBlank()) appendConsole(build.stderr.trim())
                     if (build.exitCode != 0) {
-                        appendConsole("Build failed (exit " + build.exitCode + ").")
+                        appendConsole("Build/setup failed (exit " + build.exitCode + ").")
                         return@post
                     }
                     appendConsole("Build completed.")
