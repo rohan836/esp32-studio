@@ -21,6 +21,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.esp32studio.cli.CliParser
+import com.esp32studio.flash.Esp32Bootloader
 import com.esp32studio.device.DeviceInfo
 import com.esp32studio.device.UsbDeviceRepository
 import com.esp32studio.project.ProjectStore
@@ -356,24 +357,152 @@ class MainActivity : android.app.Activity() {
                 }
                 main.post { appendConsole(output) }
             }
-            "info" -> appendConsole(selectedDevice?.let { "USB device: ${it.deviceName}\nVID=0x%04X PID=0x%04X".format(it.vendorId, it.productId) + "\nChip identity requires a bootloader probe." } ?: "No device connected.")
-            "doctor" -> {
-                val count = runCatching { deviceRepository.scan().size }.getOrDefault(0)
-                appendConsole("ESP32 Studio Doctor\nUSB serial devices: $count\nProject: ${projectStore.path().absolutePath}\nArduino compiler: not installed\nFirmware flasher: not installed")
-            }
+            "info" -> runBootloaderProbe()
+            "doctor" -> runDoctor()
             "project" -> when (command.arguments.firstOrNull()) {
                 "path" -> appendConsole(projectStore.path().absolutePath)
                 "save" -> { projectStore.save(editor.text.toString()); appendConsole("Project saved.") }
                 else -> appendConsole("Usage: esp project path | esp project save")
             }
-            "build" -> appendConsole("Build unavailable: Android-compatible Arduino compiler is not installed.")
-            "flash" -> appendConsole("Flash unavailable: ESP bootloader flasher is not installed.")
-            "run" -> { projectStore.save(editor.text.toString()); appendConsole("Project saved. Build and flash runtimes are not installed.") }
+            "build" -> appendConsole("Build runtime is not installed. Project source and native flashing are ready.")
+            "flash" -> runFlashCommand(command.arguments)
+            "run" -> runBuildFlashMonitor()
             "monitor" -> appendConsole(if (serialSession == null) "No serial session connected." else "Serial monitor is active in the console.")
-            "lib" -> appendConsole("Library manager is not connected yet: esp lib ${command.arguments.joinToString(" ")}")
+            "lib" -> appendConsole("Library manager command is reserved: esp lib ${command.arguments.joinToString(" ")}")
             "clear" -> console.text = ""
             else -> executeShellCommand(input)
         }
+    }
+
+    private fun runBootloaderProbe() {
+        val device = selectedDevice
+        if (device == null) {
+            appendConsole("No ESP32 USB device is selected.")
+            return
+        }
+
+        serialSession?.shutdown()
+        serialSession = null
+        statusText.text = "Probing ESP32 bootloader..."
+        appendConsole("Probing ${device.deviceName} at 115200...")
+        background.execute {
+            val result = runCatching {
+                Esp32Bootloader(usbManager).probe(device)
+            }
+            main.post {
+                result.onSuccess {
+                    statusText.text = "ESP32 bootloader ready"
+                    appendConsole("ESP32 UART bootloader responded.")
+                }.onFailure {
+                    statusText.text = "Probe failed"
+                    appendConsole("ESP32 probe failed: ${it.message}")
+                }
+                connectToDevice(device)
+            }
+        }
+    }
+
+    private fun runFlashCommand(arguments: List<String>) {
+        val device = selectedDevice
+        if (device == null) {
+            appendConsole("No ESP32 USB device is selected.")
+            return
+        }
+
+        val fileName = arguments.firstOrNull() ?: "firmware.bin"
+        val addressText = arguments.getOrNull(1) ?: "0x10000"
+        val address = parseFlashAddress(addressText)
+
+        if (address == null) {
+            appendConsole("Invalid flash address: $addressText")
+            return
+        }
+
+        val image = safeProjectFile(fileName)
+        if (image == null) {
+            appendConsole("Flash file must stay inside the project directory: $fileName")
+            return
+        }
+
+        if (!image.exists()) {
+            appendConsole("Firmware image not found: ${image.relativeTo(projectStore.path())}")
+            return
+        }
+
+        serialSession?.shutdown()
+        serialSession = null
+        statusText.text = "Flashing..."
+        appendConsole("Flashing ${image.name} at $addressText...")
+
+        background.execute {
+            val result = runCatching {
+                Esp32Bootloader(
+                    usbManager = usbManager,
+                    onProgress = { sent, total ->
+                        main.post {
+                            appendConsole("Flash ${sent}/${total} bytes")
+                        }
+                    }
+                ).flash(device, image, address)
+            }
+
+            main.post {
+                result.onSuccess {
+                    statusText.text = "Flash complete"
+                    appendConsole("Flash complete. Reconnecting serial monitor...")
+                }.onFailure {
+                    statusText.text = "Flash failed"
+                    appendConsole("Flash failed: ${it.message}")
+                }
+                connectToDevice(device)
+            }
+        }
+    }
+
+    private fun runBuildFlashMonitor() {
+        projectStore.save(editor.text.toString())
+        appendConsole("Project saved.")
+        appendConsole("Build is not yet local on Android. Use 'esp flash <file> <address>' with a compiled firmware image.")
+        appendConsole("Example: esp flash firmware.bin 0x10000")
+    }
+
+    private fun runDoctor() {
+        background.execute {
+            val devices = runCatching { deviceRepository.scan() }.getOrDefault(emptyList())
+            val projectPath = projectStore.path().absolutePath
+            val selected = selectedDevice?.deviceName ?: "none"
+            val output = buildString {
+                appendLine("ESP32 Studio Doctor")
+                appendLine("USB candidates: ${devices.size}")
+                appendLine("Selected device: $selected")
+                appendLine("Project: $projectPath")
+                appendLine("Native ESP bootloader: available")
+                appendLine("Arduino build runtime: not installed")
+                appendLine("Serial monitor: ${if (serialSession == null) "inactive" else "active"}")
+                if (devices.isNotEmpty()) {
+                    devices.forEach {
+                        appendLine("- ${it.boardFamily ?: "USB serial"} VID=0x%04X PID=0x%04X confidence=${it.confidence}".format(it.vendorId, it.productId))
+                    }
+                }
+            }
+            main.post { appendConsole(output.trimEnd()) }
+        }
+    }
+
+    private fun parseFlashAddress(value: String): Long? {
+        return runCatching {
+            if (value.startsWith("0x", ignoreCase = true)) {
+                value.substring(2).toLong(16)
+            } else {
+                value.toLong()
+            }
+        }.getOrNull()
+    }
+
+    private fun safeProjectFile(relativePath: String): java.io.File? {
+        val root = projectStore.path().canonicalFile
+        val target = java.io.File(root, relativePath).canonicalFile
+        return target.takeIf { it.path == root.path || it.path.startsWith(root.path + java.io.File.separator) }
     }
 
     private fun executeShellCommand(command: String) {
