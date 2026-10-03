@@ -2,7 +2,7 @@
 
 ## Android
 
-Android uses the packaged Android ARM64 Arduino CLI runtime already present in the APK build.
+Android uses a pinned Android ARM64 Arduino CLI-compatible runtime. The upstream Arduino CLI officially publishes desktop binaries (Windows/Linux/macOS), not an official Android binary, so the Android runtime is treated as experimental and is not described as an official Arduino SDK.
 
 The app configures:
 
