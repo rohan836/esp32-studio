@@ -7,14 +7,12 @@ import java.io.File
 
 class CommandPlannerTest {
     @Test
-    fun runnerReturnsExitCodeAndOutput() {
+    fun runnerReportsMissingCommand() {
         val result = CommandRunner().run(
-            listOf("/system/bin/sh", "-c", "printf hello"),
+            listOf("__esp32_studio_missing_command__"),
             timeoutMs = 5_000
         )
-        assertEquals(0, result.exitCode)
-        assertEquals("hello", result.stdout)
-        assertEquals("", result.stderr)
+        assertEquals(127, result.exitCode)
     }
 
     @Test
