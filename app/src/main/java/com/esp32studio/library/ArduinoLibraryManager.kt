@@ -199,8 +199,11 @@ class ArduinoLibraryManager(context: Context) {
     }
 
     private fun verifyChecksum(file: File, expected: String) {
+        if (expected.isBlank()) return
         val normalized = expected.substringAfter(':', expected).trim().lowercase(Locale.ROOT)
-        if (normalized.length != 64 || normalized.any { it !in "0123456789abcdef" }) return
+        require(normalized.length == 64 && normalized.all { it in "0123456789abcdef" }) {
+            "Unsupported library archive checksum format."
+        }
         val digest = MessageDigest.getInstance("SHA-256")
         FileInputStream(file).use { input ->
             val buffer = ByteArray(32768)
@@ -215,6 +218,7 @@ class ArduinoLibraryManager(context: Context) {
     }
 
     private fun unzipSafely(zipFile: File, destination: File) {
+        var totalExtracted = 0L
         ZipInputStream(BufferedInputStream(FileInputStream(zipFile))).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
@@ -231,7 +235,9 @@ class ArduinoLibraryManager(context: Context) {
                             val count = zip.read(buffer)
                             if (count < 0) break
                             total += count
+                            totalExtracted += count
                             check(total <= 150L * 1024L * 1024L) { "Archive entry exceeds size limit." }
+                            check(totalExtracted <= 300L * 1024L * 1024L) { "Library archive expands beyond size limit." }
                             target.write(buffer, 0, count)
                         }
                     }
