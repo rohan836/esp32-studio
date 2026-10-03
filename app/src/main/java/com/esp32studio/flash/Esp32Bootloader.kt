@@ -23,7 +23,7 @@ class Esp32Bootloader(
         const val FLASH_BEGIN = 0x02
         const val FLASH_DATA = 0x03
         const val FLASH_END = 0x04
-        const val PACKET_SIZE = 0x4000
+        const val PACKET_SIZE = 0x400
         const val SECTOR_SIZE = 0x1000
         const val RESPONSE_TIMEOUT_MS = 2000L
     }
@@ -115,9 +115,23 @@ class Esp32Bootloader(
         error("ESP32 UART bootloader did not respond. Put the board in download mode and try again.")
     }
 
+    private fun getEraseSize(offset: Long, size: Int): Int {
+        val numSectors = (size + SECTOR_SIZE - 1) / SECTOR_SIZE
+        val startSector = (offset / SECTOR_SIZE).toInt()
+        val headSectors = minOf(
+            numSectors,
+            16 - (startSector % 16)
+        )
+        return if (numSectors < 2 * headSectors) {
+            ((numSectors + 1) / 2) * SECTOR_SIZE
+        } else {
+            (numSectors - headSectors) * SECTOR_SIZE
+        }
+    }
+
     private fun flashImage(port: UsbSerialPort, image: ByteArray, address: Long) {
-        val eraseSize = ((image.size + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE
-        val blockCount = ceil(eraseSize / PACKET_SIZE.toDouble()).toInt()
+        val eraseSize = getEraseSize(address, image.size)
+        val blockCount = ceil(image.size / PACKET_SIZE.toDouble()).toInt()
 
         val begin = ByteArrayOutputStream().apply {
             writeLe32(eraseSize.toLong())
