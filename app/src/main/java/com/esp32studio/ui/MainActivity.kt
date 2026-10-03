@@ -22,6 +22,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.esp32studio.cli.CliParser
 import com.esp32studio.flash.Esp32Bootloader
+import com.esp32studio.library.ArduinoLibraryManager
 import com.esp32studio.device.DeviceInfo
 import com.esp32studio.device.UsbDeviceRepository
 import com.esp32studio.project.ProjectStore
@@ -38,6 +39,7 @@ class MainActivity : android.app.Activity() {
     private lateinit var usbManager: UsbManager
     private lateinit var deviceRepository: UsbDeviceRepository
     private lateinit var projectStore: ProjectStore
+    private lateinit var libraryManager: ArduinoLibraryManager
 
     private val background = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
@@ -96,6 +98,7 @@ class MainActivity : android.app.Activity() {
         usbManager = getSystemService(USB_SERVICE) as UsbManager
         deviceRepository = UsbDeviceRepository(usbManager)
         projectStore = ProjectStore(this)
+        libraryManager = ArduinoLibraryManager(this)
 
         registerUsbReceiver()
         setContentView(buildUi())
@@ -341,7 +344,7 @@ class MainActivity : android.app.Activity() {
     private fun executeStudioCommand(input: String) {
         val command = CliParser.parse(input) ?: return
         when (command.name) {
-            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp project path | esp build | esp flash FILE [ADDRESS] | esp run\nesp monitor | esp lib search NAME | esp lib add NAME")
+            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp project path | esp build | esp flash FILE [ADDRESS] | esp run\nesp monitor | esp lib search NAME | esp lib add NAME | esp lib list")
             "devices" -> background.execute {
                 val devices = runCatching { deviceRepository.scan() }.getOrDefault(emptyList())
                 val output = if (devices.isEmpty()) "No supported USB serial device found." else devices.joinToString("\n") { d ->
@@ -360,9 +363,63 @@ class MainActivity : android.app.Activity() {
             "flash" -> runFlashCommand(command.arguments)
             "run" -> runBuildFlashMonitor()
             "monitor" -> appendConsole(if (serialSession == null) "No serial session connected." else "Serial monitor is active in the console.")
-            "lib" -> appendConsole("Library manager command is reserved: esp lib ${command.arguments.joinToString(" ")}")
+            "lib" -> runLibraryCommand(command.arguments)
             "clear" -> console.text = ""
             else -> executeShellCommand(input)
+        }
+    }
+
+    private fun runLibraryCommand(arguments: List<String>) {
+        val action = arguments.firstOrNull()?.lowercase()
+        val name = arguments.drop(1).joinToString(" ").trim()
+        when (action) {
+            "search" -> {
+                if (name.isBlank()) {
+                    appendConsole("Usage: esp lib search NAME")
+                    return
+                }
+                appendConsole("Searching Arduino Library Registry for: " + name)
+                background.execute {
+                    val result = runCatching { libraryManager.search(name, 15) }
+                    main.post {
+                        result.onSuccess { libraries ->
+                            if (libraries.isEmpty()) {
+                                appendConsole("No matching libraries found.")
+                            } else {
+                                appendConsole(libraries.joinToString("\n") {
+                                    it.name + " " + it.version + " — " + it.sentence
+                                })
+                                appendConsole("Install with: esp lib add \"" + libraries.first().name + "\"")
+                            }
+                        }.onFailure {
+                            appendConsole("Library search failed: " + it.message)
+                        }
+                    }
+                }
+            }
+            "add", "install" -> {
+                if (name.isBlank()) {
+                    appendConsole("Usage: esp lib add LIBRARY_NAME")
+                    return
+                }
+                appendConsole("Installing library: " + name)
+                background.execute {
+                    val result = runCatching { libraryManager.install(name) }
+                    main.post {
+                        result.onSuccess { appendConsole("Library installed: " + it.absolutePath) }
+                            .onFailure { appendConsole("Library install failed: " + it.message) }
+                    }
+                }
+            }
+            "list" -> background.execute {
+                val installed = runCatching { libraryManager.installedLibraries() }
+                main.post {
+                    installed.onSuccess {
+                        appendConsole(if (it.isEmpty()) "No libraries installed." else it.joinToString("\n"))
+                    }.onFailure { appendConsole("Could not list libraries: " + it.message) }
+                }
+            }
+            else -> appendConsole("Usage: esp lib search NAME | esp lib add NAME | esp lib list")
         }
     }
 
