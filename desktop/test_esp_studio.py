@@ -1,6 +1,6 @@
 import unittest
 
-from esp_studio import command_doctor, fqbn_core
+from desktop.esp_studio import command_doctor, fqbn_core
 
 
 class FqbnTests(unittest.TestCase):
