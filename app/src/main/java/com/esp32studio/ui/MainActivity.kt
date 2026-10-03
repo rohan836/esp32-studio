@@ -606,7 +606,8 @@ class MainActivity : android.app.Activity() {
                 appendLine("Selected device: $selected")
                 appendLine("Project: $projectPath")
                 appendLine("Native ESP bootloader: available")
-                appendLine("Arduino build runtime: not installed")
+                appendLine("Arduino toolchain: " + toolchainManager.status())
+                appendLine("Installed libraries: " + libraryManager.installedLibraries().size)
                 appendLine("Serial monitor: ${if (serialSession == null) "inactive" else "active"}")
                 if (devices.isNotEmpty()) {
                     devices.forEach {
