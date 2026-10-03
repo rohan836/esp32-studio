@@ -108,11 +108,8 @@ class Esp32Bootloader(
         }
 
         repeat(8) {
-            sendCommand(port, SYNC, payload)
-            repeat(2) {
-                val response = readPacket(port, RESPONSE_TIMEOUT_MS)
-                if (response.command == SYNC) return
-            }
+            val response = sendCommand(port, SYNC, payload)
+            if (response.command == SYNC) return
         }
 
         error("ESP32 UART bootloader did not respond. Put the board in download mode and try again.")
@@ -139,8 +136,9 @@ class Esp32Bootloader(
                 if (sourceIndex < end) image[sourceIndex] else 0xFF.toByte()
             }
 
+            val dataSize = (image.size - start).coerceIn(0, PACKET_SIZE)
             val data = ByteArrayOutputStream().apply {
-                writeLe32(minOf(PACKET_SIZE, image.size - start).toLong())
+                writeLe32(dataSize.toLong())
                 writeLe32(sequence.toLong())
                 writeLe32(0)
                 writeLe32(0)
