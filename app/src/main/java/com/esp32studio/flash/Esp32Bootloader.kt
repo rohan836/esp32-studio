@@ -145,7 +145,7 @@ class Esp32Bootloader(
                 write(chunk)
             }.toByteArray()
 
-            expectSuccess(sendCommand(port, FLASH_DATA, data, checksum(chunk)))
+            expectSuccess(sendCommand(port, FLASH_DATA, data, Esp32Protocol.checksum(chunk)))
             onProgress(end.coerceAtMost(image.size), image.size)
         }
 
@@ -166,7 +166,7 @@ class Esp32Bootloader(
             write(data)
         }.toByteArray()
 
-        port.write(slipEncode(body), 3000)
+        port.write(Esp32Protocol.slipEncode(body), 3000)
         return readPacket(port, RESPONSE_TIMEOUT_MS, expectedCommand = command)
     }
 
@@ -181,12 +181,6 @@ class Esp32Bootloader(
                 )
             }
         }
-    }
-
-    private fun checksum(data: ByteArray): Int {
-        var value = 0xEF
-        data.forEach { value = value xor (it.toInt() and 0xFF) }
-        return value
     }
 
     private fun readPacket(
@@ -253,26 +247,6 @@ class Esp32Bootloader(
             value = readLe32(bytes, 4),
             data = bytes.copyOfRange(8, 8 + size)
         )
-    }
-
-    private fun slipEncode(data: ByteArray): ByteArray {
-        val output = ByteArrayOutputStream()
-        output.write(0xC0)
-        data.forEach { value ->
-            when (value.toInt() and 0xFF) {
-                0xC0 -> {
-                    output.write(0xDB)
-                    output.write(0xDC)
-                }
-                0xDB -> {
-                    output.write(0xDB)
-                    output.write(0xDD)
-                }
-                else -> output.write(value.toInt() and 0xFF)
-            }
-        }
-        output.write(0xC0)
-        return output.toByteArray()
     }
 
     private fun ByteArrayOutputStream.writeLe16(value: Int) {
