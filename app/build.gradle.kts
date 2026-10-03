@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.esp32studio"
-    compileSdk = 37
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.esp32studio"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
     }
