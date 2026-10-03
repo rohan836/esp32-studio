@@ -42,6 +42,13 @@ def idf_py() -> str:
     return executable("idf.py", "ESP_STUDIO_IDF_PY")
 
 
+def fqbn_core(fqbn: str) -> str:
+    parts = fqbn.strip().split(":")
+    if len(parts) < 3 or any(not part for part in parts):
+        raise ValueError(f"Invalid FQBN: {fqbn}")
+    return ":".join(parts[:-1])
+
+
 def command_doctor(_: argparse.Namespace) -> int:
     print(f"Host: {platform.system()} {platform.machine()}")
     print(f"Python: {sys.version.split()[0]}")
