@@ -25,11 +25,15 @@ jobs:
         with:
           gradle-version: "9.4.1"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+      - name: Verify Android SDK
+        run: |
+          command -v sdkmanager
+          sdkmanager --version
 
       - name: Install Android build packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
