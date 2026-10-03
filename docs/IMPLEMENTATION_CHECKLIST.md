@@ -8,20 +8,32 @@ This checklist records code that is actually present in the repository.
 - [x] USB host support.
 - [x] USB permission flow.
 - [x] Automatic USB serial discovery.
-- [x] Automatic selection of the strongest ESP32 candidate.
+- [x] Automatic selection of the strongest supported device.
 - [x] Automatic serial connection after USB permission.
 - [x] 115200 serial monitor.
 - [x] Local project storage.
 - [x] Project save command.
-- [x] ESP32-specific command parser.
-- [x] Android shell fallback.
+- [x] Project-local Arduino FQBN selection.
+- [x] Arduino board/core search and installation commands.
+- [x] Generic Arduino FQBN compilation.
+
+## Arduino board coverage
+
+- [x] Official Arduino Boards Manager package model.
+- [x] ESP32 Arduino core configuration.
+- [x] Classic AVR core support (`arduino:avr`) for compilation.
+- [x] Native Android STK500v1 uploader for classic Uno/Nano targets.
+- [x] Generic desktop Arduino CLI upload path for any installed compatible core.
+- [ ] Native Android uploader adapter for every possible Arduino core.
+- [ ] Physical Uno/Nano upload verification.
+- [ ] Physical upload verification for additional Arduino cores.
 
 ## ESP32-native control
 
 - [x] Native ROM bootloader protocol implementation.
 - [x] SLIP packet encoding.
 - [x] ESP checksum implementation.
-- [x] Automatic DTR/RTS bootloader reset sequence for common UART boards.
+- [x] Automatic DTR/RTS bootloader reset sequence.
 - [x] Bootloader SYNC probe.
 - [x] Binary flash write with FLASH_BEGIN / FLASH_DATA / FLASH_END.
 - [x] Flash progress reporting.
@@ -31,16 +43,17 @@ This checklist records code that is actually present in the repository.
 - [ ] Flash-content hash verification.
 - [ ] Chip revision and flash-size probing.
 - [ ] Multi-image flash manifest.
+- [ ] Physical ESP32 flash verification.
 
-## Build system
+## Desktop toolchains
 
-- [x] Arduino CLI adapter interface.
-- [x] Safe process timeout and output handling.
-- [x] Unit tests for command timeout and stdout/stderr capture.
-- [ ] Android-compatible Arduino compiler runtime.
-- [ ] ESP32 Arduino core package manager.
-- [ ] Incremental build cache.
-- [ ] One-command source -> build -> flash -> monitor.
+- [x] Windows/Ubuntu Arduino CLI bridge.
+- [x] Windows/Ubuntu board discovery bridge.
+- [x] Windows/Ubuntu Arduino core installation bridge.
+- [x] Windows/Ubuntu Arduino compile/upload/monitor bridge.
+- [x] Windows/Ubuntu ESP-IDF build/flash/monitor bridge.
+- [ ] Full Windows ESP-IDF installation smoke test.
+- [ ] Full Ubuntu ESP-IDF installation smoke test.
 
 ## Libraries and projects
 
@@ -57,7 +70,7 @@ This checklist records code that is actually present in the repository.
 
 - [ ] OTA discovery.
 - [ ] OTA upload.
-- [ ] ESP-IDF backend.
+- [ ] Android ESP-IDF backend.
 - [ ] Optional remote build backend.
 - [ ] Full PTY terminal.
 
@@ -66,9 +79,11 @@ This checklist records code that is actually present in the repository.
 - [x] Source reviewed after implementation.
 - [x] Protocol helper unit tests added.
 - [x] Command runner unit tests added.
+- [x] Board FQBN unit tests added.
+- [x] Desktop wrapper unit test added.
 - [ ] Android CI build passes after the latest commits.
-- [x] Library ZIP path traversal tests added.
 - [ ] Physical ESP32 probe tested on hardware.
-- [ ] Physical binary flash tested on hardware.
+- [ ] Physical ESP32 flash tested on hardware.
+- [ ] Physical Uno/Nano flash tested on hardware.
 
-The last two hardware checks need a real ESP32 connected to an Android device. They cannot be honestly marked complete from repository inspection alone.
+Hardware and toolchain verification must be reported as incomplete until performed on the corresponding platform.

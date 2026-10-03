@@ -10,7 +10,7 @@ class ArduinoToolchainManager(context: Context) {
     private val cli = File(app.applicationInfo.nativeLibraryDir, "libarduino_cli.so")
     private val runner = CommandRunner()
 
-    val projectFqbn: String = "esp32:esp32:esp32"
+    val defaultFqbn: String = "esp32:esp32:esp32"
 
     fun runtimeAvailable(): Boolean = cli.isFile && cli.canExecute()
 
@@ -21,15 +21,13 @@ class ArduinoToolchainManager(context: Context) {
         File(root, "staging").mkdirs()
         if (!configFile.isFile) {
             configFile.writeText(
-                """
-                board_manager:
-                  additional_urls:
-                    - https://espressif.github.io/arduino-esp32/package_esp32_index.json
-                directories:
-                  data: "${File(root, "data").absolutePath}"
-                  downloads: "${File(root, "downloads").absolutePath}"
-                  user: "${root.absolutePath}"
-                """.trimIndent() + "\n"
+                "board_manager:\n" +
+                    "  additional_urls:\n" +
+                    "    - https://espressif.github.io/arduino-esp32/package_esp32_index.json\n" +
+                    "directories:\n" +
+                    "  data: \"" + File(root, "data").absolutePath + "\"\n" +
+                    "  downloads: \"" + File(root, "downloads").absolutePath + "\"\n" +
+                    "  user: \"" + root.absolutePath + "\"\n"
             )
         }
         return configFile
@@ -44,31 +42,46 @@ class ArduinoToolchainManager(context: Context) {
         else "Arduino CLI could not start: " + result.stderr.trim()
     }
 
-    fun ensureEsp32CoreInstalled(): CommandResult {
-        check(runtimeAvailable()) {
-            "Android Arduino CLI is not packaged in this APK. Build the APK through Android CI."
-        }
-        prepareConfig()
-        val listed = run(listOf("core", "list"), timeoutMs = 30_000)
-        if (listed.exitCode == 0 && listed.stdout.contains("esp32:esp32")) {
-            return CommandResult(0, "ESP32 core already installed.", "")
-        }
-        return installEsp32Core()
+    fun boardListAll(query: String = ""): CommandResult {
+        return run(
+            if (query.isBlank()) listOf("board", "listall")
+            else listOf("board", "listall", query),
+            timeoutMs = 30_000
+        )
     }
 
-    fun installEsp32Core(): CommandResult {
-        check(runtimeAvailable()) {
-            "Android Arduino CLI is not packaged in this APK. Build the APK through Android CI."
-        }
+    fun coreList(): CommandResult =
+        run(listOf("core", "list"), timeoutMs = 30_000)
+
+    fun coreSearch(query: String): CommandResult =
+        run(listOf("core", "search", query), timeoutMs = 30_000)
+
+    fun installCore(coreId: String): CommandResult {
+        require(coreId.isNotBlank()) { "Core ID must not be blank." }
         prepareConfig()
         val update = run(listOf("core", "update-index"), timeoutMs = 5 * 60 * 1000L)
         if (update.exitCode != 0) return update
-        return run(listOf("core", "install", "esp32:esp32"), timeoutMs = 30 * 60 * 1000L)
+        return run(listOf("core", "install", coreId), timeoutMs = 30 * 60 * 1000L)
     }
 
-    fun compile(projectDirectory: File): CommandResult {
+    fun ensureCoreInstalled(fqbn: String): CommandResult {
+        BoardFqbn.validate(fqbn)
         check(runtimeAvailable()) {
-            "Android Arduino CLI is not packaged in this APK. Build the APK through Android CI."
+            "Android Arduino CLI is not packaged in this APK. Build the APK through the Android CI workflow."
+        }
+        prepareConfig()
+        val coreId = BoardFqbn.coreId(fqbn)
+        val listed = coreList()
+        if (listed.exitCode == 0 && listed.stdout.lineSequence().any { it.trim().startsWith(coreId) }) {
+            return CommandResult(0, "Core already installed: " + coreId, "")
+        }
+        return installCore(coreId)
+    }
+
+    fun compile(projectDirectory: File, fqbn: String): CommandResult {
+        BoardFqbn.validate(fqbn)
+        check(runtimeAvailable()) {
+            "Android Arduino CLI is not packaged in this APK. Build the APK through the Android CI workflow."
         }
         require(projectDirectory.isDirectory) { "Project directory does not exist." }
         prepareConfig()
@@ -77,7 +90,7 @@ class ArduinoToolchainManager(context: Context) {
         return run(
             listOf(
                 "compile",
-                "--fqbn", projectFqbn,
+                "--fqbn", fqbn,
                 "--output-dir", output.absolutePath,
                 "--export-binaries",
                 projectDirectory.absolutePath
@@ -86,16 +99,21 @@ class ArduinoToolchainManager(context: Context) {
         )
     }
 
-    fun compiledSketchImage(projectDirectory: File): File? {
+    fun compiledSketchArtifact(projectDirectory: File, fqbn: String): File? {
         val sketchName = projectDirectory.listFiles()
             .orEmpty()
             .firstOrNull { it.isFile && it.extension.equals("ino", true) }
             ?.nameWithoutExtension ?: return null
         val build = File(projectDirectory, "build")
-        return listOf(
-            File(build, sketchName + ".ino.bin"),
-            File(build, sketchName + ".bin")
-        ).firstOrNull { it.isFile && it.length() > 0L }
+        val extension = BoardFqbn.preferredArtifactExtension(fqbn)
+        return build.walkTopDown()
+            .filter { it.isFile && it.extension.equals(extension, true) }
+            .firstOrNull { file ->
+                file.name.startsWith(sketchName, ignoreCase = true)
+            }
+            ?: build.walkTopDown()
+                .filter { it.isFile && it.extension.equals(extension, true) }
+                .firstOrNull()
     }
 
     private fun run(args: List<String>, timeoutMs: Long): CommandResult {
