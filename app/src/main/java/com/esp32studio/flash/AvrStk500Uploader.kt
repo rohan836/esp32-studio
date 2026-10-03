@@ -30,32 +30,44 @@ class AvrStk500Uploader(
         require(hexFile.isFile) { "AVR HEX image does not exist: " + hexFile.absolutePath }
         val image = IntelHex.parse(hexFile)
 
-        withPort(device) { port ->
-            resetIntoBootloader(port)
-            sync(port)
-            signOn(port)
-            enterProgramming(port)
-
+        var lastError: Throwable? = null
+        for (baud in listOf(115200, 57600)) {
             try {
-                var address = 0
-                while (address < image.data.size) {
-                    val count = minOf(PAGE_SIZE, image.data.size - address)
-                    val page = image.data.copyOfRange(address, address + count)
-                    if (page.any { (it.toInt() and 0xFF) != 0xFF }) {
-                        loadAddress(port, address / 2)
-                        programPage(port, page)
+                withPort(device, baud) { port ->
+                    resetIntoBootloader(port)
+                    sync(port)
+                    signOn(port)
+                    enterProgramming(port)
+
+                    try {
+                        var address = 0
+                        while (address < image.data.size) {
+                            val count = minOf(PAGE_SIZE, image.data.size - address)
+                            val page = image.data.copyOfRange(address, address + count)
+                            if (page.any { (it.toInt() and 0xFF) != 0xFF }) {
+                                loadAddress(port, address / 2)
+                                programPage(port, page)
+                            }
+                            address += count
+                            onProgress(address.coerceAtMost(image.data.size), image.data.size)
+                        }
+                    } finally {
+                        leaveProgramming(port)
+                        resetIntoApplication(port)
                     }
-                    address += count
-                    onProgress(address.coerceAtMost(image.data.size), image.data.size)
                 }
-            } finally {
-                leaveProgramming(port)
-                resetIntoApplication(port)
+                return
+            } catch (error: Throwable) {
+                lastError = error
             }
         }
+        throw IllegalStateException(
+            "AVR bootloader did not respond at 115200 or 57600 baud.",
+            lastError
+        )
     }
 
-    private fun <T> withPort(device: UsbDevice, block: (UsbSerialPort) -> T): T {
+    private fun <T> withPort(device: UsbDevice, baudRate: Int, block: (UsbSerialPort) -> T): T {
         val driver = UsbSerialProber.getDefaultProber().probeDevice(device)
             ?: error("No USB serial driver found for " + device.deviceName)
         check(usbManager.hasPermission(device)) { "Android USB permission is not granted." }
@@ -66,7 +78,7 @@ class AvrStk500Uploader(
         try {
             port.open(connection)
             port.setParameters(
-                115200, 8,
+                baudRate, 8,
                 UsbSerialPort.STOPBITS_1,
                 UsbSerialPort.PARITY_NONE
             )
