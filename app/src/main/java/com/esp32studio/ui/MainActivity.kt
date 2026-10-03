@@ -20,6 +20,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.esp32studio.cli.CliParser
 import com.esp32studio.device.DeviceInfo
 import com.esp32studio.device.UsbDeviceRepository
 import com.esp32studio.project.ProjectStore
@@ -188,7 +189,7 @@ class MainActivity : android.app.Activity() {
         val terminalButton = Button(this).apply {
             text = "Execute"
             setOnClickListener {
-                executeShellCommand(terminal.text.toString())
+                executeStudioCommand(terminal.text.toString())
             }
         }
 
@@ -344,28 +345,45 @@ class MainActivity : android.app.Activity() {
         ).show()
     }
 
-    private fun executeShellCommand(command: String) {
-        if (command.isBlank()) return
-
-        background.execute {
-            val result = CommandRunner().run(
-                listOf("/system/bin/sh", "-c", command),
-                workingDirectory = filesDir,
-                timeoutMs = 30_000
-            )
-
-            main.post {
-                appendConsole(
-                    "$ " + command + "
-" +
-                        result.stdout +
-                        result.stderr +
-                        "
-[exit " + result.exitCode + "]"
-                )
+    private fun executeStudioCommand(input: String) {
+        val command = CliParser.parse(input) ?: return
+        when (command.name) {
+            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp project path | esp build | esp flash | esp run\nesp monitor | esp lib search NAME | esp lib add NAME")
+            "devices" -> background.execute {
+                val devices = runCatching { deviceRepository.scan() }.getOrDefault(emptyList())
+                val output = if (devices.isEmpty()) "No supported USB serial device found." else devices.joinToString("\n") { d ->
+                    "${d.boardFamily ?: "USB serial"} VID=0x%04X PID=0x%04X ports=%d confidence=%s".format(d.vendorId, d.productId, d.portCount, d.confidence)
+                }
+                main.post { appendConsole(output) }
             }
+            "info" -> appendConsole(selectedDevice?.let { "USB device: ${it.deviceName}\nVID=0x%04X PID=0x%04X".format(it.vendorId, it.productId) + "\nChip identity requires a bootloader probe." } ?: "No device connected.")
+            "doctor" -> {
+                val count = runCatching { deviceRepository.scan().size }.getOrDefault(0)
+                appendConsole("ESP32 Studio Doctor\nUSB serial devices: $count\nProject: ${projectStore.path().absolutePath}\nArduino compiler: not installed\nFirmware flasher: not installed")
+            }
+            "project" -> when (command.arguments.firstOrNull()) {
+                "path" -> appendConsole(projectStore.path().absolutePath)
+                "save" -> { projectStore.save(editor.text.toString()); appendConsole("Project saved.") }
+                else -> appendConsole("Usage: esp project path | esp project save")
+            }
+            "build" -> appendConsole("Build unavailable: Android-compatible Arduino compiler is not installed.")
+            "flash" -> appendConsole("Flash unavailable: ESP bootloader flasher is not installed.")
+            "run" -> { projectStore.save(editor.text.toString()); appendConsole("Project saved. Build and flash runtimes are not installed.") }
+            "monitor" -> appendConsole(if (serialSession == null) "No serial session connected." else "Serial monitor is active in the console.")
+            "lib" -> appendConsole("Library manager is not connected yet: esp lib ${command.arguments.joinToString(" ")}")
+            "clear" -> console.text = ""
+            else -> executeShellCommand(input)
         }
     }
+
+    private fun executeShellCommand(command: String) {
+        if (command.isBlank()) return
+        background.execute {
+            val result = CommandRunner().run(listOf("/system/bin/sh", "-c", command), workingDirectory = filesDir, timeoutMs = 30_000)
+            main.post { appendConsole("$ " + command + "\n" + result.stdout + result.stderr + "\n[exit " + result.exitCode + "]") }
+        }
+    }
+
 
     private fun appendConsole(text: String) {
         console.append(text + "
