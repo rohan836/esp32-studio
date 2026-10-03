@@ -27,7 +27,7 @@ class LibraryArchiveSafetyTest {
     @Test
     fun rejectsAbsolutePathOutsideRoot() {
         val root = File("build/test-library-root")
-        val outside = File(root, "../outside.txt").path
+        val outside = File(root.parentFile, "outside.txt").absolutePath
         try {
             LibraryArchiveSafety.outputFile(root, outside)
             fail("Outside path must be rejected")
