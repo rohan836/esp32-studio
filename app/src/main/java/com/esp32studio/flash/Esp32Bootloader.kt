@@ -126,7 +126,7 @@ class Esp32Bootloader(
     }
 
     private fun flashImage(port: UsbSerialPort, image: ByteArray, address: Long) {
-        val eraseSize = image.size
+        val eraseSize = Esp32Protocol.eraseSize(image.size)
         val blockCount = ceil(image.size / PACKET_SIZE.toDouble()).toInt()
 
         val begin = ByteArrayOutputStream().apply {
