@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f6f7f9">
+<title>ESP32 Studio — UI Prototype</title>
+<style>
+:root{
+  --bg:#f6f7f9;
+  --panel:#ffffff;
+  --panel-2:#f0f2f5;
+  --line:#d9dde4;
+  --text:#171a1f;
+  --muted:#66707d;
+  --accent:#1565c0;
+  --accent-2:#0d47a1;
+  --success:#176b3a;
+  --warning:#8a5a00;
+  --danger:#b3261e;
+  --terminal:#111318;
+  --terminal-text:#e7eaf0;
+  --code:#fbfcfd;
+  --shadow:0 2px 12px rgba(0,0,0,.07);
+  --radius:12px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+.app{
+  width:min(1120px,100%);
+  margin:0 auto;
+  padding:18px 18px 28px;
+}
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.logo{
+  width:38px;height:38px;border-radius:10px;
+  display:grid;place-items:center;
+  background:#171a1f;color:#fff;
+  font-weight:800;font-size:14px;
+  letter-spacing:.5px;
+}
+.brand h1{font-size:20px;line-height:1.1;margin:0}
+.brand p{margin:3px 0 0;color:var(--muted);font-size:12px}
+.prototype{
+  border:1px solid #bfd3ec;
+  background:#eaf3ff;
+  color:#164c83;
+  padding:7px 10px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+}
+.status{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px 16px;
+  box-shadow:var(--shadow);
+  margin-bottom:12px;
+}
+.status-main{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.status-title{
+  display:flex;align-items:center;gap:9px;
+  font-size:17px;font-weight:700;
+}
+.dot{width:10px;height:10px;border-radius:50%;background:#7b8794}
+.dot.ok{background:#27a45e}
+.dot.warn{background:#d18b00}
+.dot.error{background:#cb3a35}
+.device{
+  margin-top:7px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.5;
+}
+.grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 320px;
+  gap:12px;
+}
+.left,.right{min-width:0}
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.toolbar{
+  padding:10px;
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:8px;
+  border-bottom:1px solid var(--line);
+}
+.btn{
+  min-height:44px;
+  border:1px solid #c9ced6;
+  background:#fff;
+  color:var(--text);
+  border-radius:9px;
+  font-weight:700;
+}
+.btn:hover{background:#f2f4f7}
+.btn.primary{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#fff;
+}
+.btn.primary:hover{background:var(--accent-2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.editor-wrap{
+  background:var(--code);
+  display:grid;
+  grid-template-columns:48px minmax(0,1fr);
+  min-height:410px;
+}
+.lines{
+  padding:13px 8px;
+  text-align:right;
+  color:#929aa5;
+  background:#f1f3f5;
+  border-right:1px solid var(--line);
+  font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  user-select:none;
+}
+#editor{
+  width:100%;
+  min-height:410px;
+  resize:vertical;
+  border:0;
+  outline:0;
+  padding:13px 14px;
+  background:var(--code);
+  color:#20242a;
+  font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  tab-size:2;
+}
+.section-label{
+  padding:10px 12px 6px;
+  font-size:13px;
+  font-weight:700;
+  color:#39414b;
+}
+.terminal-row{
+  padding:8px 10px 10px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 104px;
+  gap:8px;
+  border-bottom:1px solid var(--line);
+}
+.input{
+  width:100%;
+  min-height:44px;
+  border:1px solid #cbd1d9;
+  border-radius:9px;
+  padding:0 11px;
+  outline:0;
+  background:#fff;
+}
+.input:focus{border-color:#7ea6d1;box-shadow:0 0 0 3px rgba(21,101,192,.12)}
+.chips{
+  display:flex;gap:7px;flex-wrap:wrap;
+  padding:0 10px 10px;
+}
+.chip{
+  border:1px solid #ccd2db;
+  background:#fff;
+  color:#37404a;
+  border-radius:999px;
+  padding:7px 9px;
+  font-size:11px;
+}
+.chip:hover{background:#f1f4f7}
+.console{
+  margin:0 10px 10px;
+  background:var(--terminal);
+  color:var(--terminal-text);
+  border-radius:9px;
+  min-height:210px;
+  max-height:330px;
+  overflow:auto;
+  padding:12px;
+  font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:pre-wrap;
+}
+.side-card{margin-bottom:12px}
+.side-head{
+  padding:12px 14px;
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.side-head strong{font-size:13px}
+.side-body{padding:12px 14px}
+.meta-row{
+  display:flex;justify-content:space-between;gap:10px;
+  padding:7px 0;
+  font-size:12px;
+  border-bottom:1px solid #edf0f3;
+}
+.meta-row:last-child{border-bottom:0}
+.meta-row span:first-child{color:var(--muted)}
+.meta-row span:last-child{text-align:right;font-weight:650}
+.badge{
+  display:inline-flex;align-items:center;
+  border-radius:999px;padding:3px 7px;
+  font-size:10px;font-weight:800;
+  background:#eef2f6;color:#46505b;
+}
+.badge.ok{background:#e7f7ee;color:var(--success)}
+.badge.warn{background:#fff4da;color:var(--warning)}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.small-btn{
+  min-height:39px;border:1px solid #ccd2db;background:#fff;border-radius:8px;font-weight:650;font-size:12px;
+}
+.small-btn:hover{background:#f4f6f8}
+.libs{max-height:260px;overflow:auto}
+.lib{
+  padding:9px 0;border-bottom:1px solid #edf0f3;
+}
+.lib:last-child{border-bottom:0}
+.lib strong{font-size:12px}
+.lib p{margin:3px 0 7px;color:var(--muted);font-size:11px;line-height:1.4}
+.lib button{min-height:31px;padding:0 9px;border-radius:7px;border:1px solid #ccd2db;background:#fff;font-size:11px;font-weight:700}
+.modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.42);
+  display:none;align-items:flex-end;justify-content:center;
+  padding:12px;z-index:20;
+}
+.modal.open{display:flex}
+.sheet{
+  width:min(760px,100%);
+  max-height:min(82vh,760px);
+  overflow:auto;
+  background:#fff;border-radius:14px 14px 10px 10px;
+  box-shadow:0 14px 45px rgba(0,0,0,.25);
+}
+.sheet-head{
+  position:sticky;top:0;background:#fff;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:14px;border-bottom:1px solid var(--line);
+}
+.sheet-body{padding:14px}
+.close{
+  border:0;background:transparent;font-size:22px;line-height:1;color:#505861
+}
+.form-row{display:flex;gap:8px}
+.form-row .input{flex:1}
+.search-results{margin-top:12px}
+.empty{color:var(--muted);font-size:12px;padding:15px 0}
+.flash-row{
+  display:grid;grid-template-columns:minmax(0,1fr) 130px 90px;gap:8px;align-items:end
+}
+.flash-row label{font-size:11px;color:var(--muted);display:block;margin-bottom:5px}
+.footer{
+  text-align:center;color:#737c87;font-size:11px;padding:13px 0 0
+}
+@media (max-width:850px){
+  .grid{grid-template-columns:1fr}
+  .right{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  .side-card{margin:0}
+}
+@media (max-width:560px){
+  .app{padding:12px}
+  .topbar{align-items:flex-start}
+  .brand h1{font-size:18px}
+  .prototype{font-size:9px}
+  .toolbar{grid-template-columns:1fr}
+  .right{display:block}
+  .side-card{margin-bottom:12px}
+  .flash-row{grid-template-columns:1fr}
+  .editor-wrap,#editor{min-height:340px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">ESP</div>
+      <div>
+        <h1>ESP32 Studio</h1>
+        <p>Android-native ESP32 development workflow</p>
+      </div>
+    </div>
+    <div class="prototype">SYNTHETIC UI PROTOTYPE</div>
+  </header>
+
+  <section class="status">
+    <div class="status-main">
+      <div class="status-title"><span id="statusDot" class="dot ok"></span><span id="statusText">ESP32 detected</span></div>
+      <button class="small-btn" id="detectBtn" type="button">Detect USB</button>
+    </div>
+    <div id="deviceText" class="device">ESP32 DevKit V1 · VID 0x10C4 PID 0xEA60 · 1 port · Silicon Labs · HIGH confidence</div>
+  </section>
+
+  <div class="grid">
+    <main class="left">
+      <section class="card">
+        <div class="toolbar">
+          <button class="btn" id="connectBtn" type="button">Connect</button>
+          <button class="btn" id="saveBtn" type="button">Save</button>
+          <button class="btn primary" id="runBtn" type="button">Run</button>
+        </div>
+
+        <div class="editor-wrap">
+          <div id="lineNumbers" class="lines">1<br>2<br>3</div>
+          <textarea id="editor" spellcheck="false">// ESP32 Studio synthetic sketch
+const int LED_PIN = 2;
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  Serial.begin(115200);
+  Serial.println("ESP32 Studio ready");
+}
+
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(500);
+  digitalWrite(LED_PIN, LOW);
+  delay(500);
+}</textarea>
+        </div>
+
+        <div class="section-label">Terminal</div>
+        <div class="terminal-row">
+          <input class="input" id="terminalInput" value="esp doctor" autocomplete="off" aria-label="Terminal command">
+          <button class="btn" id="executeBtn" type="button">Execute</button>
+        </div>
+        <div class="chips">
+          <button class="chip cmd" data-cmd="esp devices">esp devices</button>
+          <button class="chip cmd" data-cmd="esp info">esp info</button>
+          <button class="chip cmd" data-cmd="esp doctor">esp doctor</button>
+          <button class="chip cmd" data-cmd="esp build">esp build</button>
+          <button class="chip cmd" data-cmd="esp lib search WiFi">lib search</button>
+          <button class="chip cmd" data-cmd="esp lib list">lib list</button>
+          <button class="chip cmd" data-cmd="esp toolchain status">toolchain status</button>
+          <button class="chip cmd" data-cmd="clear">clear</button>
+        </div>
+        <div id="console" class="console" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <aside class="right">
+      <section class="card side-card">
+        <div class="side-head"><strong>Board</strong><span id="connectionBadge" class="badge ok">Connected</span></div>
+        <div class="side-body">
+          <div class="meta-row"><span>Board</span><span>ESP32 DevKit V1</span></div>
+          <div class="meta-row"><span>USB UART</span><span>CP2102</span></div>
+          <div class="meta-row"><span>Port</span><span>/dev/bus/usb/001/004</span></div>
+          <div class="meta-row"><span>Baud</span><span>115200</span></div>
+          <div class="quick-grid" style="margin-top:10px">
+            <button class="small-btn" id="probeBtn" type="button">Probe Bootloader</button>
+            <button class="small-btn" id="monitorBtn" type="button">Monitor</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card side-card">
+        <div class="side-head"><strong>Toolchain</strong><span id="toolchainBadge" class="badge ok">Installed</span></div>
+        <div class="side-body">
+          <div class="meta-row"><span>Arduino CLI</span><span>Android ARM64</span></div>
+          <div class="meta-row"><span>ESP32 core</span><span>3.3.1</span></div>
+          <div class="meta-row"><span>Compiler</span><span>Xtensa</span></div>
+          <div class="quick-grid" style="margin-top:10px">
+            <button class="small-btn" id="toolStatusBtn" type="button">Status</button>
+            <button class="small-btn" id="toolInstallBtn" type="button">Install Core</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card side-card">
+        <div class="side-head">
+          <strong>Libraries</strong>
+          <button class="small-btn" id="libraryOpenBtn" type="button">Manage</button>
+        </div>
+        <div id="libraryPreview" class="side-body libs"></div>
+      </section>
+
+      <section class="card side-card">
+        <div class="side-head"><strong>Flash</strong><span class="badge">Synthetic</span></div>
+        <div class="side-body">
+          <div class="flash-row">
+            <div>
+              <label for="flashFile">Firmware</label>
+              <input class="input" id="flashFile" value="build/hello-esp32.ino.bin">
+            </div>
+            <div>
+              <label for="flashAddress">Address</label>
+              <input class="input" id="flashAddress" value="0x10000">
+            </div>
+            <button class="small-btn" id="flashBtn" type="button">Flash</button>
+          </div>
+          <div style="margin-top:9px;color:var(--muted);font-size:10px">
+            Prototype rule: address must be 0x1000-aligned and firmware path must stay inside the project.
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="footer">This page simulates the current Android UI. It does not access USB, compile code, flash hardware, or download libraries.</div>
+</div>
+
+<div class="modal" id="libraryModal" role="dialog" aria-modal="true" aria-labelledby="libraryTitle">
+  <div class="sheet">
+    <div class="sheet-head">
+      <strong id="libraryTitle">Arduino Library Manager</strong>
+      <button class="close" id="libraryCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="sheet-body">
+      <div class="form-row">
+        <input class="input" id="libraryQuery" value="WiFi" placeholder="Search library name">
+        <button class="btn primary" id="librarySearchBtn" type="button">Search</button>
+      </div>
+      <div id="libraryResults" class="search-results"></div>
+      <div style="margin-top:14px">
+        <strong style="font-size:12px">Installed libraries</strong>
+        <div id="installedLibraries" class="libs" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var state = {
+    connected: true,
+    detected: true,
+    busy: false,
+    toolchain: true,
+    monitor: false,
+    saved: false,
+    installedLibraries: ["WiFi", "HTTPClient", "ArduinoJson"]
+  };
+
+  var libraryData = [
+    {name:"WiFi", version:"3.2.0", author:"Arduino", sentence:"ESP32 WiFi library for network connectivity."},
+    {name:"ArduinoJson", version:"7.4.2", author:"Benoit Blanchon", sentence:"Efficient JSON library for embedded C++."},
+    {name:"HTTPClient", version:"2.0.0", author:"Arduino", sentence:"HTTP client support for ESP32."},
+    {name:"PubSubClient", version:"2.8.0", author:"Nick O'Leary", sentence:"MQTT client library."},
+    {name:"Adafruit SSD1306", version:"2.5.13", author:"Adafruit", sentence:"OLED display driver library."},
+    {name:"ESPAsyncWebServer", version:"3.7.7", author:"ESP32Async", sentence:"Asynchronous web server for ESP32."}
+  ];
+
+  var el = function(id){ return document.getElementById(id); };
+
+  function log(line){
+    var c = el("console");
+    c.textContent += line + "\\n";
+    c.scrollTop = c.scrollHeight;
+  }
+
+  function setStatus(text, kind){
+    el("statusText").textContent = text;
+    el("statusDot").className = "dot " + (kind || "");
+  }
+
+  function setBusy(on){
+    state.busy = on;
+    el("runBtn").disabled = on;
+    el("saveBtn").disabled = on;
+    el("executeBtn").disabled = on;
+  }
+
+  function lineNumbers(){
+    var n = el("editor").value.split("\\n").length;
+    var out = [];
+    for(var i=1;i<=n;i++) out.push(i);
+    el("lineNumbers").innerHTML = out.join("<br>");
+  }
+
+  function save(){
+    state.saved = true;
+    log("Project saved.");
+    setStatus(state.connected ? "ESP32 detected" : "Ready", state.connected ? "ok" : "");
+  }
+
+  function detect(){
+    setStatus("Scanning USB...", "warn");
+    log("Scanning supported USB serial devices...");
+    setTimeout(function(){
+      state.detected = true;
+      el("deviceText").textContent = "ESP32 DevKit V1 · VID 0x10C4 PID 0xEA60 · 1 port · Silicon Labs · HIGH confidence";
+      log("Found ESP32 DevKit V1 (CP2102).");
+      setStatus(state.connected ? "ESP32 detected" : "Ready", state.connected ? "ok" : "");
+    }, 650);
+  }
+
+  function connect(){
+    if(!state.detected){
+      log("No supported USB serial device found.");
+      return;
+    }
+    state.connected = !state.connected;
+    if(state.connected){
+      el("connectBtn").textContent = "Disconnect";
+      el("connectionBadge").textContent = "Connected";
+      el("connectionBadge").className = "badge ok";
+      log("Connected to ESP32 DevKit V1 at 115200 baud.");
+      setStatus("Connected", "ok");
+    }else{
+      el("connectBtn").textContent = "Connect";
+      el("connectionBadge").textContent = "Disconnected";
+      el("connectionBadge").className = "badge warn";
+      log("Serial session closed.");
+      setStatus("Ready", "");
+    }
+  }
+
+  function probe(){
+    if(!state.connected){
+      log("No ESP32 USB device is selected.");
+      return;
+    }
+    setStatus("Probing ESP32 bootloader...", "warn");
+    log("Probing ESP32 at 115200...");
+    setTimeout(function(){
+      setStatus("ESP32 bootloader ready", "ok");
+      log("ESP32 UART bootloader responded.");
+      state.connected = true;
+    }, 650);
+  }
+
+  function build(flashAfter){
+    save();
+    setBusy(true);
+    setStatus("Building sketch...", "warn");
+    log("Saved sketch. Checking Android Arduino toolchain...");
+    setTimeout(function(){
+      if(!state.toolchain){
+        log("Build/setup failed (exit 1).");
+        setStatus("Build failed", "error");
+        setBusy(false);
+        return;
+      }
+      log("arduino-cli core list");
+      log("esp32:esp32 3.3.1");
+      log("Compiling sketch: hello-esp32.ino");
+      log("Build completed.");
+      setStatus("Build complete", "ok");
+      setBusy(false);
+      if(flashAfter){
+        flash();
+      }
+    }, 1200);
+  }
+
+  function run(){
+    build(true);
+  }
+
+  function flash(){
+    var file = el("flashFile").value.trim();
+    var addrText = el("flashAddress").value.trim().toLowerCase();
+    var address = addrText.indexOf("0x") === 0 ? parseInt(addrText.slice(2),16) : parseInt(addrText,10);
+    if(!state.connected){
+      log("No ESP32 USB device is selected.");
+      return;
+    }
+    if(!file || file.indexOf("/") === 0 || file.indexOf("..") >= 0){
+      log("Flash file must stay inside the project directory: " + file);
+      return;
+    }
+    if(!file.toLowerCase().endsWith(".bin")){
+      log("Only .bin firmware images can be flashed.");
+      return;
+    }
+    if(isNaN(address) || address % 0x1000 !== 0){
+      log("Flash address must be 0x1000-aligned.");
+      return;
+    }
+    setBusy(true);
+    setStatus("Flashing...", "warn");
+    log("Flashing " + file + " at " + addrText + "...");
+    var sent = 0;
+    var total = 100;
+    var timer = setInterval(function(){
+      sent += 20;
+      if(sent > total) sent = total;
+      log("Flash " + sent + "/" + total + " bytes");
+      if(sent === total){
+        clearInterval(timer);
+        log("Flash complete. Reconnecting serial monitor...");
+        setStatus("Flash complete", "ok");
+        setBusy(false);
+        state.connected = true;
+        if(state.monitor) startMonitor();
+      }
+    }, 240);
+  }
+
+  function startMonitor(){
+    if(!state.connected){
+      log("No serial session connected.");
+      return;
+    }
+    state.monitor = true;
+    el("monitorBtn").textContent = "Stop Monitor";
+    log("Serial monitor active at 115200 baud.");
+    setTimeout(function(){ if(state.monitor) log("ESP32 Studio ready"); }, 300);
+    setTimeout(function(){ if(state.monitor) log("LED: HIGH"); }, 700);
+    setTimeout(function(){ if(state.monitor) log("LED: LOW"); }, 1200);
+  }
+
+  function toggleMonitor(){
+    if(state.monitor){
+      state.monitor = false;
+      el("monitorBtn").textContent = "Monitor";
+      log("Serial monitor stopped.");
+    }else{
+      startMonitor();
+    }
+  }
+
+  function toolStatus(){
+    log("Arduino toolchain status");
+    log("CLI: Android ARM64");
+    log("ESP32 core: " + (state.toolchain ? "3.3.1 installed" : "not installed"));
+    log("Compile target: esp32:esp32:esp32");
+  }
+
+  function installToolchain(){
+    if(state.toolchain){
+      log("ESP32 core already installed.");
+      return;
+    }
+    setBusy(true);
+    el("toolchainBadge").textContent = "Installing";
+    el("toolchainBadge").className = "badge warn";
+    log("Installing ESP32 Arduino core. Synthetic download...");
+    setTimeout(function(){
+      state.toolchain = true;
+      el("toolchainBadge").textContent = "Installed";
+      el("toolchainBadge").className = "badge ok";
+      log("ESP32 core install finished.");
+      setBusy(false);
+    }, 1200);
+  }
+
+  function doctor(){
+    log("ESP32 Studio Doctor");
+    log("USB candidates: " + (state.detected ? "1" : "0"));
+    log("Selected device: " + (state.connected ? "ESP32 DevKit V1" : "none"));
+    log("Project: /data/user/0/com.esp32studio/files/projects/hello-esp32");
+    log("Native ESP bootloader: available");
+    log("Arduino toolchain: " + (state.toolchain ? "installed" : "missing"));
+    log("Installed libraries: " + state.installedLibraries.length);
+    log("Serial monitor: " + (state.monitor ? "active" : "inactive"));
+  }
+
+  function devices(){
+    if(state.detected){
+      log("ESP32 DevKit V1 VID=0x10C4 PID=0xEA60 ports=1 confidence=HIGH");
+    }else{
+      log("No supported USB serial device found.");
+    }
+  }
+
+  function info(){
+    if(!state.connected){
+      log("No ESP32 USB device is selected.");
+      return;
+    }
+    log("ESP32 UART bootloader responded.");
+    log("Chip: ESP32 (synthetic)");
+    log("Flash size: 4MB (synthetic)");
+  }
+
+  function renderInstalled(){
+    var box = el("installedLibraries");
+    if(!state.installedLibraries.length){
+      box.innerHTML = '<div class="empty">No libraries installed.</div>';
+      return;
+    }
+    box.innerHTML = state.installedLibraries.map(function(name){
+      return '<div class="lib"><strong>'+escapeHtml(name)+'</strong><p>Installed in app-private Arduino sketchbook.</p></div>';
+    }).join("");
+    el("libraryPreview").innerHTML = state.installedLibraries.slice(0,4).map(function(name){
+      return '<div class="lib"><strong>'+escapeHtml(name)+'</strong></div>';
+    }).join("");
+  }
+
+  function searchLibraries(){
+    var q = el("libraryQuery").value.trim().toLowerCase();
+    var box = el("libraryResults");
+    if(!q){
+      box.innerHTML = '<div class="empty">Enter a library name.</div>';
+      return;
+    }
+    var results = libraryData.filter(function(x){
+      return x.name.toLowerCase().indexOf(q)>=0 ||
+             x.author.toLowerCase().indexOf(q)>=0 ||
+             x.sentence.toLowerCase().indexOf(q)>=0;
+    });
+    if(!results.length){
+      box.innerHTML = '<div class="empty">No matching libraries found.</div>';
+      return;
+    }
+    box.innerHTML = results.map(function(x){
+      var installed = state.installedLibraries.indexOf(x.name)>=0;
+      return '<div class="lib">'+
+        '<strong>'+escapeHtml(x.name)+' <span class="badge">'+escapeHtml(x.version)+'</span></strong>'+
+        '<p>'+escapeHtml(x.sentence)+' · '+escapeHtml(x.author)+'</p>'+
+        '<button type="button" data-install="'+escapeHtml(x.name)+'">'+(installed ? "Installed" : "Install")+'</button>'+
+      '</div>';
+    }).join("");
+    box.querySelectorAll("[data-install]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        installLibrary(btn.getAttribute("data-install"));
+      });
+    });
+  }
+
+  function installLibrary(name){
+    if(state.installedLibraries.indexOf(name)>=0){
+      log("Library already installed: " + name);
+      return;
+    }
+    state.installedLibraries.push(name);
+    log("Library installed: " + name);
+    renderInstalled();
+    searchLibraries();
+  }
+
+  function libCommand(args){
+    var action = (args[0] || "").toLowerCase();
+    var name = args.slice(1).join(" ").trim();
+    if(action === "search"){
+      el("libraryModal").classList.add("open");
+      if(name) el("libraryQuery").value = name;
+      searchLibraries();
+      log("Searching Arduino Library Registry for: " + (name || "WiFi"));
+      return;
+    }
+    if(action === "add" || action === "install"){
+      if(!name){ log("Usage: esp lib add LIBRARY_NAME"); return; }
+      var found = libraryData.find(function(x){return x.name.toLowerCase()===name.toLowerCase()});
+      if(!found){ log("Library '"+name+"' was not found in the synthetic registry."); return; }
+      installLibrary(found.name);
+      return;
+    }
+    if(action === "list"){
+      log(state.installedLibraries.length ? state.installedLibraries.join("\\n") : "No libraries installed.");
+      return;
+    }
+    log("Usage: esp lib search NAME | esp lib add NAME | esp lib list");
+  }
+
+  function toolCommand(args){
+    var action = (args[0] || "").toLowerCase();
+    if(action === "status") toolStatus();
+    else if(action === "install") installToolchain();
+    else log("Usage: esp toolchain status | esp toolchain install");
+  }
+
+  function command(input){
+    var raw = input.trim();
+    if(!raw) return;
+    log("$ " + raw);
+    var parts = raw.split(/\\s+/);
+    if(parts[0].toLowerCase()==="clear"){
+      el("console").textContent="";
+      return;
+    }
+    if(parts[0].toLowerCase() !== "esp"){
+      log("Synthetic shell fallback: command accepted, no real Android shell is executed.");
+      log("[exit 0]");
+      return;
+    }
+    var name = (parts[1] || "help").toLowerCase();
+    var args = parts.slice(2);
+    if(name==="help"){
+      log("ESP32 Studio CLI");
+      log("esp devices | esp detect | esp info | esp doctor");
+      log("esp project path | esp build | esp flash FILE [ADDRESS] | esp run");
+      log("esp monitor | esp lib search NAME | esp lib add NAME | esp lib list");
+      log("esp toolchain status | esp toolchain install");
+      return;
+    }
+    if(name==="devices" || name==="detect"){ devices(); return; }
+    if(name==="info"){ info(); return; }
+    if(name==="doctor"){ doctor(); return; }
+    if(name==="build"){ build(false); return; }
+    if(name==="run"){ run(); return; }
+    if(name==="flash"){ 
+      if(args[0]) el("flashFile").value=args[0];
+      if(args[1]) el("flashAddress").value=args[1];
+      flash();
+      return;
+    }
+    if(name==="monitor"){ toggleMonitor(); return; }
+    if(name==="lib"){ libCommand(args); return; }
+    if(name==="toolchain"){ toolCommand(args); return; }
+    if(name==="project"){
+      if((args[0]||"") === "path") log("/data/user/0/com.esp32studio/files/projects/hello-esp32");
+      else if((args[0]||"") === "save") save();
+      else log("Usage: esp project path | esp project save");
+      return;
+    }
+    log("Unknown ESP32 Studio command: " + name);
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  el("detectBtn").addEventListener("click", detect);
+  el("connectBtn").addEventListener("click", connect);
+  el("saveBtn").addEventListener("click", save);
+  el("runBtn").addEventListener("click", run);
+  el("probeBtn").addEventListener("click", probe);
+  el("monitorBtn").addEventListener("click", toggleMonitor);
+  el("toolStatusBtn").addEventListener("click", toolStatus);
+  el("toolInstallBtn").addEventListener("click", installToolchain);
+  el("flashBtn").addEventListener("click", flash);
+  el("executeBtn").addEventListener("click", function(){ command(el("terminalInput").value); });
+  el("terminalInput").addEventListener("keydown", function(e){ if(e.key==="Enter") command(el("terminalInput").value); });
+  el("libraryOpenBtn").addEventListener("click", function(){
+    el("libraryModal").classList.add("open");
+    searchLibraries();
+  });
+  el("libraryCloseBtn").addEventListener("click", function(){ el("libraryModal").classList.remove("open"); });
+  el("libraryModal").addEventListener("click", function(e){
+    if(e.target === el("libraryModal")) el("libraryModal").classList.remove("open");
+  });
+  el("librarySearchBtn").addEventListener("click", searchLibraries);
+  el("libraryQuery").addEventListener("keydown", function(e){ if(e.key==="Enter") searchLibraries(); });
+  el("editor").addEventListener("input", lineNumbers);
+  document.querySelectorAll(".cmd").forEach(function(btn){
+    btn.addEventListener("click", function(){ el("terminalInput").value=btn.getAttribute("data-cmd"); command(el("terminalInput").value); });
+  });
+
+  lineNumbers();
+  renderInstalled();
+  log("ESP32 Studio ready.");
+  log("Synthetic ESP32 device detected.");
+  log("Connect an ESP32 USB cable to start automatic detection.");
+})();
+</script>
+</body>
+</html>
