@@ -335,21 +335,13 @@ class MainActivity : android.app.Activity() {
     }
 
     private fun saveAndRun() {
-        projectStore.save(editor.text.toString())
-        appendConsole("Project saved.")
-        appendConsole("Build/flash adapters are present, but an Android-compatible Arduino toolchain is not bundled in 0.1.")
-        appendConsole("Next runtime step: install a compatible local toolchain or use the remote build backend.")
-        Toast.makeText(
-            this,
-            "Project saved. Toolchain runtime is not installed yet.",
-            Toast.LENGTH_SHORT
-        ).show()
+        runBuildFlashMonitor()
     }
 
     private fun executeStudioCommand(input: String) {
         val command = CliParser.parse(input) ?: return
         when (command.name) {
-            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp project path | esp build | esp flash | esp run\nesp monitor | esp lib search NAME | esp lib add NAME")
+            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp project path | esp build | esp flash FILE [ADDRESS] | esp run\nesp monitor | esp lib search NAME | esp lib add NAME")
             "devices" -> background.execute {
                 val devices = runCatching { deviceRepository.scan() }.getOrDefault(emptyList())
                 val output = if (devices.isEmpty()) "No supported USB serial device found." else devices.joinToString("\n") { d ->
@@ -426,6 +418,16 @@ class MainActivity : android.app.Activity() {
 
         if (!image.exists()) {
             appendConsole("Firmware image not found: ${image.relativeTo(projectStore.path())}")
+            return
+        }
+
+        if (!image.name.endsWith(".bin", ignoreCase = true)) {
+            appendConsole("Only .bin firmware images can be flashed.")
+            return
+        }
+
+        if (address % 0x1000L != 0L) {
+            appendConsole("Flash address must be 0x1000-aligned.")
             return
         }
 
