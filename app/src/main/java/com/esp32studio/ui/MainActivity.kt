@@ -386,8 +386,7 @@ class MainActivity : android.app.Activity() {
 
 
     private fun appendConsole(text: String) {
-        console.append(text + "
-")
+        console.append(text + "\n")
         (console.parent as? ScrollView)?.post {
             (console.parent as ScrollView).fullScroll(ScrollView.FOCUS_DOWN)
         }
