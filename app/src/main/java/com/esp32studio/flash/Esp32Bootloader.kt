@@ -32,6 +32,7 @@ class Esp32Bootloader(
         return withPort(device) { port ->
             enterBootloader(port)
             sync(port)
+            exitBootloader(port)
             EspProbeResult(true, device.deviceName)
         }
     }
@@ -96,6 +97,15 @@ class Esp32Bootloader(
         port.setRTS(false)
         TimeUnit.MILLISECONDS.sleep(100)
         port.setDTR(false)
+    }
+
+    private fun exitBootloader(port: UsbSerialPort) {
+        // Pulse EN with GPIO0 released so the running application starts again.
+        port.setDTR(false)
+        port.setRTS(true)
+        TimeUnit.MILLISECONDS.sleep(100)
+        port.setRTS(false)
+        TimeUnit.MILLISECONDS.sleep(100)
     }
 
     private fun sync(port: UsbSerialPort) {
