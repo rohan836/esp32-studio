@@ -112,7 +112,7 @@ class MainActivity : android.app.Activity() {
         refreshDevices()
 
         appendConsole("ESP32 Studio ready.")
-        appendConsole("Connect an ESP32 USB cable to start automatic detection.")
+        appendConsole("Connect an ESP32 or Arduino USB cable to start automatic detection.")
     }
 
     override fun onDestroy() {
@@ -772,7 +772,7 @@ class MainActivity : android.app.Activity() {
                 appendLine("Project: $projectPath")
                 appendLine("Board FQBN: " + projectStore.boardFqbn())
                 appendLine("Board core: " + BoardFqbn.coreId(projectStore.boardFqbn()))
-                appendLine("Native ESP bootloader: available")
+                appendLine("Native ESP32 bootloader: " + if (BoardFqbn.isEsp32(projectStore.boardFqbn())) "available" else "not selected")
                 appendLine("Arduino toolchain: " + toolchainManager.status())
                 appendLine("Installed libraries: " + libraryManager.installedLibraries().size)
                 appendLine("Serial monitor: ${if (serialSession == null) "inactive" else "active"}")
