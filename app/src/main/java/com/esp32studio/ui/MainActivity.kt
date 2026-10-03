@@ -464,8 +464,15 @@ class MainActivity : android.app.Activity() {
     private fun runBuildFlashMonitor() {
         projectStore.save(editor.text.toString())
         appendConsole("Project saved.")
-        appendConsole("Build is not yet local on Android. Use 'esp flash <file> <address>' with a compiled firmware image.")
-        appendConsole("Example: esp flash firmware.bin 0x10000")
+
+        val image = safeProjectFile("firmware.bin")
+        if (image?.isFile == true) {
+            appendConsole("Found firmware.bin. Starting flash...")
+            runFlashCommand(listOf("firmware.bin", "0x10000"))
+        } else {
+            appendConsole("Build runtime is not installed on Android.")
+            appendConsole("Add a compiled firmware.bin to the project, then Run will flash it at 0x10000.")
+        }
     }
 
     private fun runDoctor() {
