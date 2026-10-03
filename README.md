@@ -13,32 +13,34 @@ A lightweight Android development environment for ESP32 boards.
 
 ## Current status
 
-This repository now contains the Android foundation for ESP32 Studio.
+The repository now contains the Android foundation plus a native ESP32 ROM bootloader path.
 
 Working foundation:
 
 - Native Kotlin Android app.
-- Automatic USB serial discovery.
+- Automatic USB serial discovery and selection.
 - ESP32 and common USB-UART device classification.
 - Android USB permission handling.
-- Automatic connect and 115200 serial monitor.
+- Automatic serial connection and 115200 monitor.
 - Local project storage with a starter sketch.
-- Lightweight Android shell terminal.
-- Arduino CLI adapter for future local toolchain installation.
-- Unit tests for device classification and command execution.
-- GitHub Actions build configuration.
+- ESP32-specific command layer with shell fallback.
+- Native ESP32 bootloader SYNC probing.
+- Native binary flash writing with progress reporting.
+- Safe project-path and flash-address checks.
+- Unit tests for device classification, CLI parsing, protocol encoding, and command execution.
+- GitHub Actions build and test configuration.
 
 Not yet complete:
 
 - Android-compatible local Arduino compiler/toolchain packaging.
-- Native ESP bootloader flashing implementation.
-- Automatic chip-level probing and safe board-profile resolution.
-- Library download UI.
+- Automatic chip revision and flash-size probing.
+- Flash-content verification.
+- Library search/download/install.
 - Incremental firmware build cache.
 - OTA support.
 - ESP-IDF backend.
 
-The project does not pretend these parts are finished. The main engineering risk is the Android-compatible compiler runtime. A desktop Linux Arduino CLI package cannot be assumed to run on Android.
+Native flashing accepts a prebuilt .bin image. The repository does not claim that physical ESP32 flashing has been verified until hardware testing is performed. The remaining major engineering gap is the Android-native build runtime; a desktop Linux Arduino CLI package cannot be assumed to run on Android.
 
 ## First user workflow
 
@@ -48,7 +50,9 @@ The project does not pretend these parts are finished. The main engineering risk
 4. Android asks for USB permission when required.
 5. The app opens the serial monitor automatically.
 6. Edit and save the project.
-7. The future build runtime will compile, flash, and reopen the serial monitor with one action.
+7. Probe the ESP bootloader with `esp info` when hardware access needs verification.
+8. Flash a compiled image with `esp flash firmware.bin 0x10000`.
+9. Return to the automatic serial monitor.
 
 ## Architecture
 
