@@ -115,22 +115,8 @@ class Esp32Bootloader(
         error("ESP32 UART bootloader did not respond. Put the board in download mode and try again.")
     }
 
-    private fun getEraseSize(offset: Long, size: Int): Int {
-        val numSectors = (size + SECTOR_SIZE - 1) / SECTOR_SIZE
-        val startSector = (offset / SECTOR_SIZE).toInt()
-        val headSectors = minOf(
-            numSectors,
-            16 - (startSector % 16)
-        )
-        return if (numSectors < 2 * headSectors) {
-            ((numSectors + 1) / 2) * SECTOR_SIZE
-        } else {
-            (numSectors - headSectors) * SECTOR_SIZE
-        }
-    }
-
     private fun flashImage(port: UsbSerialPort, image: ByteArray, address: Long) {
-        val eraseSize = getEraseSize(address, image.size)
+        val eraseSize = image.size
         val blockCount = ceil(image.size / PACKET_SIZE.toDouble()).toInt()
 
         val begin = ByteArrayOutputStream().apply {
@@ -184,15 +170,16 @@ class Esp32Bootloader(
     }
 
     private fun expectSuccess(packet: Packet) {
-        if (packet.data.size >= 2) {
-            val status = packet.data[packet.data.size - 2].toInt() and 0xFF
-            if (status != 0) {
-                val error = packet.data.last().toInt() and 0xFF
-                throw IllegalStateException(
-                    "ESP32 bootloader command failed: status=0x%02X error=0x%02X"
-                        .format(status, error)
-                )
-            }
+        require(packet.data.size >= 2) {
+            "ESP32 bootloader returned an incomplete status response."
+        }
+        val status = packet.data[0].toInt() and 0xFF
+        if (status != 0) {
+            val error = packet.data[1].toInt() and 0xFF
+            throw IllegalStateException(
+                "ESP32 bootloader command failed: status=0x%02X error=0x%02X"
+                    .format(status, error)
+            )
         }
     }
 
