@@ -136,9 +136,8 @@ class Esp32Bootloader(
                 if (sourceIndex < end) image[sourceIndex] else 0xFF.toByte()
             }
 
-            val dataSize = (image.size - start).coerceIn(0, PACKET_SIZE)
             val data = ByteArrayOutputStream().apply {
-                writeLe32(dataSize.toLong())
+                writeLe32(PACKET_SIZE.toLong())
                 writeLe32(sequence.toLong())
                 writeLe32(0)
                 writeLe32(0)
@@ -208,13 +207,18 @@ class Esp32Bootloader(
                         buffer.reset()
                     }
                     byte == 0xC0 && inFrame -> {
-                        if (buffer.size() == 0) continue
+                        if (buffer.size() == 0) {
+                            inFrame = false
+                            escaped = false
+                            continue
+                        }
                         val packet = parsePacket(buffer.toByteArray())
+                        inFrame = false
+                        escaped = false
                         if (expectedCommand == null || packet.command == expectedCommand) {
                             return packet
                         }
                         buffer.reset()
-                        escaped = false
                     }
                     inFrame && escaped -> {
                         buffer.write(
