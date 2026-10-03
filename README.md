@@ -32,7 +32,7 @@ Working foundation:
 
 Not yet complete:
 
-- Android-compatible local Arduino compiler/toolchain packaging.
+- Verify downloaded ESP32 compiler/linker tools run inside a standard Android app sandbox.
 - Automatic chip revision and flash-size probing.
 - Flash-content verification.
 - Library search/download/install.
@@ -40,7 +40,7 @@ Not yet complete:
 - OTA support.
 - ESP-IDF backend.
 
-Native flashing accepts a prebuilt .bin image. The repository does not claim that physical ESP32 flashing has been verified until hardware testing is performed. The remaining major engineering gap is the Android-native build runtime; a desktop Linux Arduino CLI package cannot be assumed to run on Android.
+The CI-built APK includes an Android ARM64 Arduino CLI and the app can install the ESP32 core and compile sketches. The ESP32 compiler packages downloaded by the board manager still require verification inside a normal Android app sandbox; Android/Termux support alone is not proof. Library commands are available through the terminal. Native flashing accepts a prebuilt .bin image, but a complete clean-board flash can also need bootloader and partition images. Physical USB flashing is not marked verified without a real board test.
 
 ## First user workflow
 
