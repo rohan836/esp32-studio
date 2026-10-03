@@ -16,18 +16,19 @@
 
 - Android-compatible Arduino CLI packaging
 - ESP32 Arduino core packaging
-- esptool integration
 - toolchain cache
 - library manager
 - build cache
+- integrate the native bootloader flasher into the build pipeline
 
 ## 0.3 — one-tap workflow
 
-- automatic board profile
+- automatic chip revision and flash-size resolution
 - automatic port selection
 - compile -> flash -> serial
 - clear failure recovery
 - progress events
+- flash-content verification
 
 ## 0.4 — project system
 
@@ -51,6 +52,13 @@
 - ESP32-C6
 - ESP-IDF backend
 - optional remote build backend
+
+## Current verification status
+
+- Native ESP32 ROM probing and binary flashing are implemented.
+- Unit tests cover the protocol encoding and command runner.
+- Physical ESP32 flashing still requires hardware verification.
+- Automatic source compilation on Android is still not implemented.
 
 ## Explicit non-goals for the first release
 
