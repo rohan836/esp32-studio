@@ -6,6 +6,13 @@ import org.junit.Test
 
 class Esp32ProtocolTest {
     @Test
+    fun roundsFlashEraseSizeToSectorBoundary() {
+        assertEquals(0x1000, Esp32Protocol.eraseSize(1))
+        assertEquals(0x1000, Esp32Protocol.eraseSize(0x1000))
+        assertEquals(0x2000, Esp32Protocol.eraseSize(0x1001))
+    }
+
+    @Test
     fun calculatesEspChecksum() {
         assertEquals(
             0xEF xor 0x01 xor 0x02 xor 0x03,
