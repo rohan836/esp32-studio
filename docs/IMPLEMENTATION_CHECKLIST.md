@@ -44,8 +44,11 @@ This checklist records code that is actually present in the repository.
 
 ## Libraries and projects
 
-- [ ] Library search.
-- [ ] Library download/install.
+- [x] Official Arduino Library Registry search with a 24-hour streaming index cache.
+- [x] Library archive download with size limits and SHA-256 verification when supplied by the registry.
+- [x] Safe ZIP extraction with path traversal checks.
+- [x] Install and replace a library under the app-private Arduino sketchbook.
+- [x] List installed libraries.
 - [ ] Dependency lock file.
 - [ ] Multiple project browser.
 - [ ] Git integration.
@@ -64,6 +67,7 @@ This checklist records code that is actually present in the repository.
 - [x] Protocol helper unit tests added.
 - [x] Command runner unit tests added.
 - [ ] Android CI build passes after the latest commits.
+- [x] Library ZIP path traversal tests added.
 - [ ] Physical ESP32 probe tested on hardware.
 - [ ] Physical binary flash tested on hardware.
 
