@@ -215,14 +215,10 @@ class ArduinoLibraryManager(context: Context) {
     }
 
     private fun unzipSafely(zipFile: File, destination: File) {
-        val root = destination.canonicalFile
         ZipInputStream(BufferedInputStream(FileInputStream(zipFile))).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                val output = File(destination, entry.name).canonicalFile
-                check(output == root || output.path.startsWith(root.path + File.separator)) {
-                    "Unsafe path in library archive."
-                }
+                val output = LibraryArchiveSafety.outputFile(destination, entry.name)
                 if (entry.isDirectory) {
                     check(output.mkdirs() || output.isDirectory) { "Could not create folder." }
                 } else {
