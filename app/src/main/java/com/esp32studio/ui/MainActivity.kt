@@ -21,6 +21,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.esp32studio.cli.CliParser
+import com.esp32studio.flash.AvrStk500Uploader
 import com.esp32studio.flash.Esp32Bootloader
 import com.esp32studio.library.ArduinoLibraryManager
 import com.esp32studio.device.DeviceInfo
@@ -29,6 +30,7 @@ import com.esp32studio.project.ProjectStore
 import com.esp32studio.serial.SerialSession
 import com.esp32studio.toolchain.CommandRunner
 import com.esp32studio.toolchain.ArduinoToolchainManager
+import com.esp32studio.toolchain.BoardFqbn
 import java.util.concurrent.Executors
 
 class MainActivity : android.app.Activity() {
@@ -250,7 +252,7 @@ class MainActivity : android.app.Activity() {
 
         if (preferred == null) {
             selectedDevice = null
-            deviceText.text = "No supported USB serial device detected"
+            deviceText.text = "No supported USB serial device detected · target " + projectStore.boardFqbn()
             statusText.text = "Ready"
             connectButton.isEnabled = false
             runButton.isEnabled = true
@@ -263,6 +265,8 @@ class MainActivity : android.app.Activity() {
             append(" · ")
             append(preferred.portCount)
             append(" port(s)")
+            append(" · target ")
+            append(projectStore.boardFqbn())
             preferred.manufacturer?.let {
                 append(" · ")
                 append(it)
@@ -271,10 +275,11 @@ class MainActivity : android.app.Activity() {
 
         selectedDevice = findAndroidDevice(preferred.key)
 
-        statusText.text = when (preferred.confidence) {
-            DeviceInfo.Confidence.HIGH -> "ESP32 detected"
-            DeviceInfo.Confidence.MEDIUM -> "USB serial detected"
-            DeviceInfo.Confidence.LOW -> "Device detected"
+        statusText.text = when {
+            preferred.boardFamily == "ESP32" -> "ESP32 detected"
+            preferred.boardFamily == "Arduino" -> "Arduino board detected"
+            preferred.confidence == DeviceInfo.Confidence.MEDIUM -> "USB serial detected"
+            else -> "Device detected"
         }
 
         connectButton.isEnabled = selectedDevice != null
@@ -347,7 +352,7 @@ class MainActivity : android.app.Activity() {
     private fun executeStudioCommand(input: String) {
         val command = CliParser.parse(input) ?: return
         when (command.name) {
-            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp project path | esp build | esp flash FILE [ADDRESS] | esp run\nesp monitor | esp lib search NAME | esp lib add NAME | esp lib list | esp toolchain install")
+            "help" -> appendConsole("ESP32 Studio CLI\nesp devices | esp detect | esp info | esp doctor\nesp board listall [QUERY] | esp board set FQBN\nesp core search NAME | esp core install CORE_ID | esp core list\nesp project path | esp build | esp flash FILE [ADDRESS] | esp run\nesp monitor\nesp lib search NAME | esp lib add NAME | esp lib list\nesp toolchain status | esp toolchain install")
             "devices" -> background.execute {
                 val devices = runCatching { deviceRepository.scan() }.getOrDefault(emptyList())
                 val output = if (devices.isEmpty()) "No supported USB serial device found." else devices.joinToString("\n") { d ->
@@ -357,6 +362,8 @@ class MainActivity : android.app.Activity() {
             }
             "info" -> runBootloaderProbe()
             "doctor" -> runDoctor()
+            "board" -> runBoardCommand(command.arguments)
+            "core" -> runCoreCommand(command.arguments)
             "project" -> when (command.arguments.firstOrNull()) {
                 "path" -> appendConsole(projectStore.path().absolutePath)
                 "save" -> { projectStore.save(editor.text.toString()); appendConsole("Project saved.") }
@@ -370,6 +377,76 @@ class MainActivity : android.app.Activity() {
             "toolchain" -> runToolchainCommand(command.arguments)
             "clear" -> console.text = ""
             else -> executeShellCommand(input)
+        }
+    }
+
+    private fun runBoardCommand(arguments: List<String>) {
+        when (arguments.firstOrNull()?.lowercase()) {
+            "listall", "search" -> {
+                val query = arguments.drop(1).joinToString(" ").trim()
+                background.execute {
+                    val result = runCatching { toolchainManager.boardListAll(query) }
+                    main.post {
+                        result.onSuccess {
+                            if (it.stdout.isNotBlank()) appendConsole(it.stdout.trim())
+                            if (it.stderr.isNotBlank()) appendConsole(it.stderr.trim())
+                        }.onFailure { appendConsole("Board list failed: " + it.message) }
+                    }
+                }
+            }
+            "set" -> {
+                val fqbn = arguments.drop(1).joinToString("").trim()
+                runCatching { BoardFqbn.validate(fqbn) }
+                    .onSuccess {
+                        projectStore.setBoardFqbn(it)
+                        deviceText.text = "Target board: " + it
+                        appendConsole("Target board set to " + it)
+                    }
+                    .onFailure { appendConsole("Invalid board FQBN: " + it.message) }
+            }
+            else -> appendConsole("Current board: " + projectStore.boardFqbn() + "\nUsage: esp board listall [QUERY] | esp board set FQBN")
+        }
+    }
+
+    private fun runCoreCommand(arguments: List<String>) {
+        when (arguments.firstOrNull()?.lowercase()) {
+            "list" -> background.execute {
+                val result = runCatching { toolchainManager.coreList() }
+                main.post {
+                    result.onSuccess { appendConsole(it.stdout.trim()) }
+                        .onFailure { appendConsole("Core list failed: " + it.message) }
+                }
+            }
+            "search" -> {
+                val query = arguments.drop(1).joinToString(" ").trim()
+                if (query.isBlank()) {
+                    appendConsole("Usage: esp core search NAME")
+                    return
+                }
+                background.execute {
+                    val result = runCatching { toolchainManager.coreSearch(query) }
+                    main.post {
+                        result.onSuccess { appendConsole(it.stdout.trim()) }
+                            .onFailure { appendConsole("Core search failed: " + it.message) }
+                    }
+                }
+            }
+            "install" -> {
+                val core = arguments.drop(1).joinToString("").trim().ifBlank {
+                    BoardFqbn.coreId(projectStore.boardFqbn())
+                }
+                appendConsole("Installing Arduino core: " + core)
+                background.execute {
+                    val result = runCatching { toolchainManager.installCore(core) }
+                    main.post {
+                        result.onSuccess {
+                            if (it.stdout.isNotBlank()) appendConsole(it.stdout.trim())
+                            if (it.stderr.isNotBlank()) appendConsole(it.stderr.trim())
+                        }.onFailure { appendConsole("Core install failed: " + it.message) }
+                    }
+                }
+            }
+            else -> appendConsole("Usage: esp core list | esp core search NAME | esp core install CORE_ID")
         }
     }
 
