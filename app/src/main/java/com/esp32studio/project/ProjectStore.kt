@@ -25,7 +25,21 @@ class ProjectStore(private val context: Context) {
 
     fun path(): File = projectDir
 
-    fun boardFqbn(): String = "esp32:esp32:esp32"
+    private val boardFqbnFile: File
+        get() = File(projectDir, ".board-fqbn")
+
+    fun boardFqbn(): String {
+        projectDir.mkdirs()
+        if (!boardFqbnFile.isFile) {
+            boardFqbnFile.writeText("esp32:esp32:esp32")
+        }
+        return boardFqbnFile.readText().trim()
+    }
+
+    fun setBoardFqbn(fqbn: String) {
+        projectDir.mkdirs()
+        boardFqbnFile.writeText(fqbn.trim())
+    }
 
     companion object {
         private const val DEFAULT_SKETCH = """
